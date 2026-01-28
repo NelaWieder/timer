@@ -428,18 +428,26 @@
                             // iOS: DON'T set voice object - just use lang
                             console.log('[TTS] iOS mode - using lang only');
                         } else if (platform === 'android') {
-                            // ANDROID: Try to assign a Polish voice object directly (like mars-timer-ost.html)
+                            // ANDROID: Try to assign a Polish voice object directly, fallback to any available voice
                             // Android Chrome often fails when voice=null, but works when a voice object is assigned.
                             const voices = speechSynthesis.getVoices();
-                            const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
-                            if (plVoice) {
-                                utterance.voice = plVoice;
-                                console.log('[TTS] Android mode - using Polish voice:', plVoice.name);
+                            let preferred = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pl')) || null;
+                            
+                            // Fallback: jeśli brak polskiego, użyj pierwszego dostępnego głosu
+                            if (!preferred && voices.length > 0) {
+                                preferred = voices[0];
+                                console.log('[TTS] Android mode - brak głosu polskiego, używam fallback:', preferred.name, '(' + preferred.lang + ')');
+                            }
+                            
+                            if (preferred) {
+                                utterance.voice = preferred;
+                                utterance.lang = preferred.lang; // Ustaw język zgodny z głosem
+                                console.log('[TTS] Android mode - using voice:', preferred.name, '(' + preferred.lang + ')');
                             } else {
-                                // Fallback: no voice object, just lang
+                                // Ostateczny fallback: no voice object, just lang
                                 utterance.voice = null;
                                 utterance.lang = 'pl-PL';
-                                console.log('[TTS] Android mode - no PL voice found, using lang only');
+                                console.log('[TTS] Android mode - no voices found, using lang only');
                             }
                         } else {
                             // Desktop: Use best voice if available
@@ -450,12 +458,21 @@
                             console.log('[TTS] Desktop mode - voice:', utterance.voice?.name || 'default');
                         }
 
-                        utterance.onstart = () => {
-                            console.log('[TTS] ✓ Speech started:', text);
+                        // Android: timeout handling for missing events
+                        let startTimeout = null;
+                        let endTimeout = null;
+                        let startFired = false;
+                        let endFired = false;
+                        
+                        const cleanup = () => {
+                            if (startTimeout) clearTimeout(startTimeout);
+                            if (endTimeout) clearTimeout(endTimeout);
                         };
 
-                        utterance.onend = () => {
-                            console.log('[TTS] ✓ Speech ended:', text);
+                        utterance.onstart = () => {
+                            startFired = true;
+                            if (startTimeout) clearTimeout(startTimeout);
+                            console.log('[TTS] ✓ Speech started:', text);
                         };
 
                         // Android "keep alive" resume tick (helps some Chrome builds)
@@ -464,6 +481,18 @@
                             resumeTicker = setInterval(() => {
                                 try { speechSynthesis.resume(); } catch (_) {}
                             }, 250);
+                            
+                            // Timeout dla onstart - Android Chrome czasami nie wywołuje tego eventu
+                            startTimeout = setTimeout(() => {
+                                if (!startFired) {
+                                    console.log('[TTS] Android: onstart nie został wywołany po 2 sekundach, ale speaking=' + speechSynthesis.speaking);
+                                    // Jeśli speaking jest true, prawdopodobnie działa, ale bez eventu
+                                    if (speechSynthesis.speaking) {
+                                        startFired = true;
+                                        console.log('[TTS] Android: Mówienie wydaje się działać (speaking=true), kontynuuję...');
+                                    }
+                                }
+                            }, 2000);
                         }
 
                         const clearTicker = () => {
@@ -474,12 +503,37 @@
                         };
 
                         utterance.onend = () => {
-                            console.log('[TTS] ✓ Speech ended:', text);
+                            endFired = true;
+                            cleanup();
                             clearTicker();
+                            console.log('[TTS] ✓ Speech ended:', text);
                         };
+                        
+                        // Android: timeout dla onend
+                        if (platform === 'android') {
+                            endTimeout = setTimeout(() => {
+                                if (!endFired) {
+                                    console.log('[TTS] Android: onend nie został wywołany po 10 sekundach. speaking=' + speechSynthesis.speaking + ', pending=' + speechSynthesis.pending);
+                                    if (!speechSynthesis.speaking && !speechSynthesis.pending) {
+                                        // Wydaje się, że się skończyło, ale bez eventu
+                                        endFired = true;
+                                        cleanup();
+                                        clearTicker();
+                                        console.log('[TTS] Android: Mówienie wydaje się zakończone (speaking=false, pending=false), kończę...');
+                                    } else {
+                                        // Nadal mówi lub czeka - może być problem
+                                        console.log('[TTS] Android: Mówienie nadal trwa lub czeka. Anuluję.');
+                                        speechSynthesis.cancel();
+                                        cleanup();
+                                        clearTicker();
+                                    }
+                                }
+                            }, 10000);
+                        }
 
                         utterance.onerror = (e) => {
                             console.error('[TTS] ✗ Speech error:', e.error, 'for text:', text);
+                            cleanup();
                             clearTicker();
 
                             // Retry once on error (except 'interrupted' which is normal)
@@ -489,15 +543,23 @@
                                     // Always cancel before a new utterance to avoid queue buildup
                                     speechSynthesis.cancel();
                                     const retry = new SpeechSynthesisUtterance(text);
-                                    retry.lang = 'pl-PL';
                                     retry.rate = 1.0;
                                     retry.pitch = platform === 'android' ? 1.0 : 0.95;
                                     retry.volume = 1.0;
                                     if (platform === 'android') {
-                                        // Retry: try Polish voice object
+                                        // Retry: try Polish voice first, then fallback to any available
                                         const voices = speechSynthesis.getVoices();
-                                        const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
-                                        if (plVoice) retry.voice = plVoice;
+                                        let retryVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pl')) || null;
+                                        if (!retryVoice && voices.length > 0) {
+                                            retryVoice = voices[0];
+                                        }
+                                        if (retryVoice) {
+                                            retry.voice = retryVoice;
+                                            retry.lang = retryVoice.lang;
+                                        } else {
+                                            retry.lang = 'pl-PL';
+                                        }
+                                    } else {
                                         retry.lang = 'pl-PL';
                                     }
                                     if (speechSynthesis.paused) speechSynthesis.resume();
@@ -514,21 +576,27 @@
                         // HARD ANDROID FALLBACK: if it didn't start, try again shortly with a different strategy
                         if (platform === 'android') {
                             setTimeout(() => {
-                                if (!speechSynthesis.speaking) {
+                                if (!speechSynthesis.speaking && !startFired) {
                                     console.warn('[TTS] Android: not speaking after speak(), forcing retry');
                                     speechSynthesis.cancel();
-                                    // Try with Polish voice object (like working version)
+                                    cleanup();
+                                    clearTicker();
+                                    // Try with voice object (Polish first, then fallback to any available)
                                     const voices = speechSynthesis.getVoices();
-                                    const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
+                                    let retryVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pl')) || null;
+                                    if (!retryVoice && voices.length > 0) {
+                                        retryVoice = voices[0];
+                                    }
                                     const retry2 = new SpeechSynthesisUtterance(text);
-                                    retry2.lang = 'pl-PL';
                                     retry2.rate = 1.0;
                                     retry2.pitch = 1.0;
                                     retry2.volume = 1.0;
-                                    if (plVoice) {
-                                        retry2.voice = plVoice;
-                                        console.warn('[TTS] Android: retry with PL voice:', plVoice.name);
+                                    if (retryVoice) {
+                                        retry2.voice = retryVoice;
+                                        retry2.lang = retryVoice.lang;
+                                        console.warn('[TTS] Android: retry with voice:', retryVoice.name, '(' + retryVoice.lang + ')');
                                     } else {
+                                        retry2.lang = 'pl-PL';
                                         console.warn('[TTS] Android: retry without voice object (lang only)');
                                     }
                                     if (speechSynthesis.paused) speechSynthesis.resume();
