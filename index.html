@@ -51,7 +51,7 @@
     <div class="name-modal" id="nameModal">
         <div class="name-modal-content">
             <h2>Jak masz na imię?</h2>
-            <p>Wybierz predefiniowanego gracza lub wpisz własne imię</p>
+            <p>Wybierz gracza z listy (najczęściej) lub dodaj własnego</p>
             
             <!-- Predefiniowani gracze -->
             <div class="predefined-players" id="predefinedPlayers">
@@ -67,22 +67,28 @@
                     <div class="predefined-player-color" style="background: #22c55e;"></div>
                     <span>Benek</span>
                 </button>
+                <button class="predefined-player-btn custom-player-btn" id="customPlayerBtn" data-action="custom">
+                    <div class="predefined-player-color custom-icon"></div>
+                    <span>Inny gracz</span>
+                </button>
             </div>
-            
-            <div class="custom-player-divider">
-                <span>lub</span>
+
+            <!-- Własny gracz (pokazuje się dopiero po kliknięciu "Inny gracz") -->
+            <div class="custom-player-section" id="customPlayerSection" hidden>
+                <div class="custom-player-divider">
+                    <span>Własny gracz</span>
+                </div>
+                <input type="text" class="name-input" id="playerNameInput" placeholder="Twoje imię" maxlength="12" autocomplete="off" inputmode="text">
+                <div class="color-picker" id="colorPicker">
+                    <div class="color-option blue selected" data-color="blue"></div>
+                    <div class="color-option red" data-color="red"></div>
+                    <div class="color-option green" data-color="green"></div>
+                    <div class="color-option yellow" data-color="yellow"></div>
+                    <div class="color-option black" data-color="black"></div>
+                </div>
             </div>
-            
-            <!-- Własne imię -->
-            <input type="text" class="name-input" id="playerNameInput" placeholder="Twoje imię" maxlength="12">
-            <div class="color-picker" id="colorPicker">
-                <div class="color-option blue selected" data-color="blue"></div>
-                <div class="color-option red" data-color="red"></div>
-                <div class="color-option green" data-color="green"></div>
-                <div class="color-option yellow" data-color="yellow"></div>
-                <div class="color-option black" data-color="black"></div>
-            </div>
-            <button class="lobby-btn primary" id="confirmNameBtn">Potwierdź</button>
+
+            <button class="lobby-btn primary" id="confirmNameBtn" disabled>Potwierdź</button>
         </div>
     </div>
     
@@ -1044,7 +1050,16 @@
         
         function showNameModal() {
             el.nameModal.classList.add('active');
-            el.playerNameInput.focus();
+            // Default flow: pick from presets (no auto-focus/keyboard)
+            const customSection = document.getElementById('customPlayerSection');
+            if (customSection) customSection.hidden = true;
+            document.querySelectorAll('.predefined-player-btn').forEach(b => b.classList.remove('selected'));
+            el.playerNameInput.value = '';
+            state.playerColor = 'blue';
+            document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+            const blue = document.querySelector('.color-option[data-color="blue"]');
+            if (blue) blue.classList.add('selected');
+            el.confirmNameBtn.disabled = true;
         }
         
         async function confirmPlayer() {
@@ -1052,14 +1067,19 @@
             const selectedPredefined = document.querySelector('.predefined-player-btn.selected');
             let name = '';
             
-            if (selectedPredefined) {
+            const customSection = document.getElementById('customPlayerSection');
+            const isCustom = selectedPredefined?.dataset?.action === 'custom';
+
+            if (isCustom) {
+                name = el.playerNameInput.value.trim();
+            } else if (selectedPredefined) {
                 name = selectedPredefined.dataset.name;
             } else {
-                name = el.playerNameInput.value.trim();
+                name = '';
             }
             
             if (!name) {
-                alert('Wybierz predefiniowanego gracza lub wpisz swoje imię!');
+                alert('Wybierz gracza z listy lub kliknij "Inny gracz" i wpisz imię!');
                 return;
             }
             
@@ -1865,39 +1885,70 @@
         
         // Predefiniowani gracze
         const predefinedPlayers = document.querySelectorAll('.predefined-player-btn');
+        const customPlayerBtn = document.getElementById('customPlayerBtn');
+        const customPlayerSection = document.getElementById('customPlayerSection');
+
+        function clearSelections() {
+            predefinedPlayers.forEach(b => b.classList.remove('selected'));
+        }
+
+        function selectColor(color) {
+            document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+            const colorOption = document.querySelector(`.color-option[data-color="${color}"]`);
+            if (colorOption) colorOption.classList.add('selected');
+            state.playerColor = color;
+        }
+
+        function enableConfirmIfReady() {
+            const selected = document.querySelector('.predefined-player-btn.selected');
+            const isCustom = selected?.dataset?.action === 'custom';
+            if (!selected) {
+                el.confirmNameBtn.disabled = true;
+                return;
+            }
+            if (isCustom) {
+                el.confirmNameBtn.disabled = !el.playerNameInput.value.trim();
+                return;
+            }
+            el.confirmNameBtn.disabled = false;
+        }
+
         predefinedPlayers.forEach(btn => {
             btn.addEventListener('click', () => {
-                // Usuń zaznaczenie z innych przycisków
-                predefinedPlayers.forEach(b => b.classList.remove('selected'));
-                // Zaznacz kliknięty przycisk
+                clearSelections();
                 btn.classList.add('selected');
-                // Ustaw imię i kolor
-                state.playerName = btn.dataset.name;
-                state.playerColor = btn.dataset.color;
-                // Wyczyść input
+
+                if (btn.dataset.action === 'custom') {
+                    // Reveal custom input + color picker
+                    if (customPlayerSection) customPlayerSection.hidden = false;
+                    // Default color when entering custom mode
+                    selectColor(state.playerColor || 'blue');
+                    // Focus after explicit user gesture (OK on Android)
+                    setTimeout(() => el.playerNameInput?.focus(), 0);
+                    enableConfirmIfReady();
+                    return;
+                }
+
+                // Preset selected: hide custom section, set color, enable confirm
+                if (customPlayerSection) customPlayerSection.hidden = true;
                 el.playerNameInput.value = '';
-                // Zaktualizuj wybór koloru w color pickerze
-                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
-                const colorOption = document.querySelector(`.color-option[data-color="${state.playerColor}"]`);
-                if (colorOption) colorOption.classList.add('selected');
+                state.playerColor = btn.dataset.color || 'blue';
+                selectColor(state.playerColor);
+                enableConfirmIfReady();
             });
         });
         
-        // Reset przy wyborze własnego imienia
+        // Custom name typing enables confirm (only in custom mode)
         el.playerNameInput.addEventListener('input', () => {
-            if (el.playerNameInput.value.trim()) {
-                predefinedPlayers.forEach(b => b.classList.remove('selected'));
-            }
+            enableConfirmIfReady();
         });
         
         el.colorPicker.addEventListener('click', (e) => {
+            if (customPlayerSection?.hidden) return; // color picker only available in custom mode
             const option = e.target.closest('.color-option');
             if (option) {
-                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
-                option.classList.add('selected');
-                state.playerColor = option.dataset.color;
-                // Jeśli wybrano kolor, usuń zaznaczenie z predefiniowanych graczy
-                predefinedPlayers.forEach(b => b.classList.remove('selected'));
+                selectColor(option.dataset.color);
+                enableConfirmIfReady();
             }
         });
         
