@@ -177,12 +177,31 @@
         .player-waiting-name { flex: 1; font-weight: 500; }
         .player-waiting-host { font-size: 0.7rem; color: var(--warning); text-transform: uppercase; letter-spacing: 0.1em; }
         .player-waiting-you { font-size: 0.7rem; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.1em; }
-        .player-order-controls { display: flex; flex-direction: column; gap: 4px; margin-left: auto; }
-        .order-btn { width: 32px; height: 28px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast); padding: 0; }
+        .player-order-controls { display: flex; flex-direction: column; gap: 6px; margin-left: auto; flex-shrink: 0; }
+        .order-btn { 
+            width: 44px; 
+            height: 44px; 
+            min-width: 44px; 
+            min-height: 44px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: rgba(168, 85, 247, 0.15); 
+            border: 1px solid rgba(168, 85, 247, 0.3); 
+            border-radius: var(--radius-sm); 
+            color: var(--text-secondary); 
+            cursor: pointer; 
+            transition: all var(--transition-fast); 
+            padding: 0; 
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(168, 85, 247, 0.3);
+            user-select: none;
+            -webkit-user-select: none;
+        }
         .order-btn:hover:not(:disabled) { background: rgba(168, 85, 247, 0.25); border-color: var(--primary); color: var(--primary); }
-        .order-btn:active:not(:disabled) { transform: scale(0.95); }
-        .order-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .order-btn svg { width: 14px; height: 14px; }
+        .order-btn:active:not(:disabled) { transform: scale(0.95); background: rgba(168, 85, 247, 0.35); }
+        .order-btn:disabled { opacity: 0.3; cursor: not-allowed; touch-action: none; }
+        .order-btn svg { width: 18px; height: 18px; pointer-events: none; }
         
         .waiting-actions { margin-top: auto; padding-top: 16px; }
         .start-game-btn { width: 100%; padding: 18px; font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-primary); background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--accent-pink)); border: 2px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); cursor: pointer; box-shadow: 0 0 30px var(--glow-purple); }

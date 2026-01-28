@@ -1116,12 +1116,12 @@
                         ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
                         ${isHost ? `
                             <div class="player-order-controls">
-                                <button class="order-btn order-btn-up" ${!canMoveUp ? 'disabled' : ''} data-action="up" data-player-id="${id}" title="Przenieś w górę">
+                                <button type="button" class="order-btn order-btn-up" ${!canMoveUp ? 'disabled' : ''} data-action="up" data-player-id="${id}" aria-label="Przenieś w górę">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="18 15 12 9 6 15"></polyline>
                                     </svg>
                                 </button>
-                                <button class="order-btn order-btn-down" ${!canMoveDown ? 'disabled' : ''} data-action="down" data-player-id="${id}" title="Przenieś w dół">
+                                <button type="button" class="order-btn order-btn-down" ${!canMoveDown ? 'disabled' : ''} data-action="down" data-player-id="${id}" aria-label="Przenieś w dół">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="6 9 12 15 18 9"></polyline>
                                     </svg>
@@ -1131,44 +1131,32 @@
                     </div>
                 `;
             }).join('');
-            
-            // Add event listeners for order buttons (only if host)
-            if (state.isHost) {
-                el.waitingPlayersList.querySelectorAll('.order-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const playerId = btn.dataset.playerId;
-                        const action = btn.dataset.action;
-                        if (action === 'up') {
-                            movePlayerOrder(playerId, -1);
-                        } else if (action === 'down') {
-                            movePlayerOrder(playerId, 1);
-                        }
-                    });
-                });
-            }
         }
         
         async function movePlayerOrder(playerId, direction) {
             if (!state.isHost) return;
             
-            const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
-            const currentIndex = players.findIndex(([id]) => id === playerId);
-            
-            if (currentIndex === -1) return;
-            
-            const newIndex = currentIndex + direction;
-            if (newIndex < 0 || newIndex >= players.length) return;
-            
-            // Swap orders
-            const currentPlayer = players[currentIndex];
-            const targetPlayer = players[newIndex];
-            
-            const updates = {};
-            updates[`players/${currentPlayer[0]}/order`] = targetPlayer[1].order;
-            updates[`players/${targetPlayer[0]}/order`] = currentPlayer[1].order;
-            
-            await update(ref(db, `rooms/${state.roomId}`), updates);
+            try {
+                const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
+                const currentIndex = players.findIndex(([id]) => id === playerId);
+                
+                if (currentIndex === -1) return;
+                
+                const newIndex = currentIndex + direction;
+                if (newIndex < 0 || newIndex >= players.length) return;
+                
+                // Swap orders
+                const currentPlayer = players[currentIndex];
+                const targetPlayer = players[newIndex];
+                
+                const updates = {};
+                updates[`players/${currentPlayer[0]}/order`] = targetPlayer[1].order;
+                updates[`players/${targetPlayer[0]}/order`] = currentPlayer[1].order;
+                
+                await update(ref(db, `rooms/${state.roomId}`), updates);
+            } catch (error) {
+                console.error('[ORDER] Error moving player order:', error);
+            }
         }
         
         function updateStartButton() {
@@ -1757,6 +1745,59 @@
         
         el.startGameBtn.addEventListener('click', startGame);
         el.leaveRoomBtn.addEventListener('click', leaveRoom);
+        
+        // Delegacja eventów dla przycisków zmiany kolejności graczy (działa na wszystkich urządzeniach mobilnych)
+        let orderButtonTouchStart = null;
+        el.waitingPlayersList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.order-btn');
+            if (!btn || btn.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const playerId = btn.dataset.playerId;
+            const action = btn.dataset.action;
+            if (action === 'up') {
+                movePlayerOrder(playerId, -1);
+            } else if (action === 'down') {
+                movePlayerOrder(playerId, 1);
+            }
+        });
+        
+        el.waitingPlayersList.addEventListener('touchstart', (e) => {
+            const btn = e.target.closest('.order-btn');
+            if (!btn || btn.disabled) return;
+            orderButtonTouchStart = { btn, time: Date.now(), playerId: btn.dataset.playerId, action: btn.dataset.action };
+            btn.style.opacity = '0.6';
+        }, { passive: true });
+        
+        el.waitingPlayersList.addEventListener('touchend', (e) => {
+            if (!orderButtonTouchStart) return;
+            const btn = orderButtonTouchStart.btn;
+            const touchDuration = Date.now() - orderButtonTouchStart.time;
+            
+            // Sprawdź czy dotyk był na tym samym przycisku i trwał krócej niż 500ms (normalne kliknięcie)
+            const currentBtn = e.target.closest('.order-btn');
+            if (currentBtn === btn && touchDuration < 500 && !btn.disabled) {
+                e.preventDefault();
+                e.stopPropagation();
+                const playerId = orderButtonTouchStart.playerId;
+                const action = orderButtonTouchStart.action;
+                if (action === 'up') {
+                    movePlayerOrder(playerId, -1);
+                } else if (action === 'down') {
+                    movePlayerOrder(playerId, 1);
+                }
+            }
+            
+            btn.style.opacity = '';
+            orderButtonTouchStart = null;
+        }, { passive: false });
+        
+        el.waitingPlayersList.addEventListener('touchcancel', () => {
+            if (orderButtonTouchStart) {
+                orderButtonTouchStart.btn.style.opacity = '';
+                orderButtonTouchStart = null;
+            }
+        }, { passive: true });
         
         el.passBtn.addEventListener('click', pass);
         
