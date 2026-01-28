@@ -252,7 +252,9 @@
             // Cancel pending "turn start" speech when state changes (e.g. Pass Gen)
             pendingTurnAnnounceTimeoutId: null,
             warningPlayed: false,
-            timeUpPlayed: false
+            timeUpPlayed: false,
+            // Flag to prevent double announcement of first player on game start (iOS issue)
+            gameStartAnnounced: false
         };
         
         let unsubscribers = [];
@@ -1216,6 +1218,12 @@
             
             const turnStartTime = Date.now();
             
+            // CRITICAL: Mark this turn as announced BEFORE updating Firebase
+            // This prevents the listener from announcing the first player again
+            state.lastAnnouncedTurnTime = turnStartTime;
+            state.lastAnnouncedGeneration = 1;
+            state.gameStartAnnounced = true; // Set flag to prevent double announcement
+            
             await update(ref(db, `rooms/${state.roomId}`), {
                 state: 'playing',
                 generation: 1,
@@ -1228,15 +1236,16 @@
                 gameStartTime: Date.now()
             });
             
-            // Mark this turn as announced
-            state.lastAnnouncedTurnTime = turnStartTime;
-            state.lastAnnouncedGeneration = 1;
-            
-            // Announce first player
+            // Announce first player (only here, listener won't announce again)
             const firstPlayer = players[0][1];
             console.log('[GAME] Starting game, first player:', firstPlayer.name);
             playTurnStart();
             TTS.speak(firstPlayer.name);
+            
+            // Clear flag after a short delay to allow normal turn announcements
+            setTimeout(() => {
+                state.gameStartAnnounced = false;
+            }, 2000);
         }
         
         function startGameListener() {
@@ -1249,6 +1258,7 @@
             // Reset state
             state.warningPlayed = false;
             state.timeUpPlayed = false;
+            state.gameStartAnnounced = false; // Reset flag when starting game listener
             
             const roomRef = ref(db, `rooms/${state.roomId}`);
             const unsubGame = onValue(roomRef, (snapshot) => {
@@ -1334,11 +1344,27 @@
                         const turnTimeChanged = data.turnStartTime !== state.lastAnnouncedTurnTime;
                         const generationChanged = data.generation !== state.lastAnnouncedGeneration;
                         
+                        // CRITICAL: Skip announcement if we've already announced this exact turnStartTime
+                        // This prevents double announcement on iOS where listener may fire before TTS.speak() completes
+                        const alreadyAnnounced = state.lastAnnouncedTurnTime === data.turnStartTime;
+                        
+                        // Also check if this is the first snapshot after game start
+                        const isFirstSnapshot = !prevGameState || prevGameState.state !== 'playing';
+                        
+                        // CRITICAL: If game start was just announced, skip this announcement
+                        // This prevents double announcement on iOS
+                        const skipDueToGameStart = state.gameStartAnnounced && isFirstSnapshot && data.generation === 1 && data.currentPlayerIndex === 0;
+                        
                         console.log('[TURN CHECK] turnStartTime:', data.turnStartTime, 
                                     'lastAnnounced:', state.lastAnnouncedTurnTime,
-                                    'changed:', turnTimeChanged);
+                                    'changed:', turnTimeChanged,
+                                    'alreadyAnnounced:', alreadyAnnounced,
+                                    'isFirstSnapshot:', isFirstSnapshot,
+                                    'skipDueToGameStart:', skipDueToGameStart);
                         
-                        if (turnTimeChanged) {
+                        // Only announce if turn changed AND we haven't already announced this exact time
+                        // AND we're not skipping due to game start announcement
+                        if (turnTimeChanged && !alreadyAnnounced && !skipDueToGameStart) {
                             // Nowa tura! Ogłoś gracza
                             const playerOrder = data.playerOrder || [];
                             const currentPlayerId = playerOrder[data.currentPlayerIndex];
@@ -1700,6 +1726,7 @@
             state.lastAnnouncedGeneration = 0;
             state.warningPlayed = false;
             state.timeUpPlayed = false;
+            state.gameStartAnnounced = false;
             
             clearSession();
             document.body.classList.remove('is-host');
