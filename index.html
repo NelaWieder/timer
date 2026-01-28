@@ -31,6 +31,7 @@
     
     <!-- LOBBY SCREEN -->
     <div class="screen lobby-screen active" id="lobbyScreen">
+        <div class="mars-planet-lobby"></div>
         <div class="lobby-logo">
             <h1>Mars Timer</h1>
             <p>Multiplayer</p>
@@ -427,11 +428,19 @@
                             // iOS: DON'T set voice object - just use lang
                             console.log('[TTS] iOS mode - using lang only');
                         } else if (platform === 'android') {
-                            // ANDROID (CRITICAL FIX + HARD FALLBACK):
-                            // Always force system default voice; do NOT assign any SpeechSynthesisVoice object.
-                            utterance.voice = null;
-                            utterance.lang = 'pl-PL';
-                            console.log('[TTS] Android mode - forcing system default voice');
+                            // ANDROID: Try to assign a Polish voice object directly (like mars-timer-ost.html)
+                            // Android Chrome often fails when voice=null, but works when a voice object is assigned.
+                            const voices = speechSynthesis.getVoices();
+                            const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
+                            if (plVoice) {
+                                utterance.voice = plVoice;
+                                console.log('[TTS] Android mode - using Polish voice:', plVoice.name);
+                            } else {
+                                // Fallback: no voice object, just lang
+                                utterance.voice = null;
+                                utterance.lang = 'pl-PL';
+                                console.log('[TTS] Android mode - no PL voice found, using lang only');
+                            }
                         } else {
                             // Desktop: Use best voice if available
                             if (this.polishVoice) {
@@ -485,8 +494,10 @@
                                     retry.pitch = platform === 'android' ? 1.0 : 0.95;
                                     retry.volume = 1.0;
                                     if (platform === 'android') {
-                                        // attempt 1: system default
-                                        retry.voice = null;
+                                        // Retry: try Polish voice object
+                                        const voices = speechSynthesis.getVoices();
+                                        const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
+                                        if (plVoice) retry.voice = plVoice;
                                         retry.lang = 'pl-PL';
                                     }
                                     if (speechSynthesis.paused) speechSynthesis.resume();
@@ -506,33 +517,22 @@
                                 if (!speechSynthesis.speaking) {
                                     console.warn('[TTS] Android: not speaking after speak(), forcing retry');
                                     speechSynthesis.cancel();
-                                    // Try system default first...
+                                    // Try with Polish voice object (like working version)
+                                    const voices = speechSynthesis.getVoices();
+                                    const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
                                     const retry2 = new SpeechSynthesisUtterance(text);
-                                    retry2.voice = null;
                                     retry2.lang = 'pl-PL';
                                     retry2.rate = 1.0;
                                     retry2.pitch = 1.0;
                                     retry2.volume = 1.0;
+                                    if (plVoice) {
+                                        retry2.voice = plVoice;
+                                        console.warn('[TTS] Android: retry with PL voice:', plVoice.name);
+                                    } else {
+                                        console.warn('[TTS] Android: retry without voice object (lang only)');
+                                    }
                                     if (speechSynthesis.paused) speechSynthesis.resume();
                                     speechSynthesis.speak(retry2);
-
-                                    // ...and if still not speaking, try a PL voice object (not by name)
-                                    setTimeout(() => {
-                                        if (!speechSynthesis.speaking) {
-                                            const voices = speechSynthesis.getVoices();
-                                            const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
-                                            console.warn('[TTS] Android: retry with pl voice:', plVoice?.name || 'none');
-                                            speechSynthesis.cancel();
-                                            const retry3 = new SpeechSynthesisUtterance(text);
-                                            retry3.lang = 'pl-PL';
-                                            retry3.rate = 1.0;
-                                            retry3.pitch = 1.0;
-                                            retry3.volume = 1.0;
-                                            if (plVoice) retry3.voice = plVoice;
-                                            if (speechSynthesis.paused) speechSynthesis.resume();
-                                            speechSynthesis.speak(retry3);
-                                        }
-                                    }, 350);
                                 }
                             }, 300);
                         }
@@ -552,12 +552,13 @@
 
                 // Platform timing:
                 // - iOS: delay helps after cancel()
-                // - Android: avoid setTimeout delay; use rAF to let cancel settle without losing momentum
+                // - Android: NO delay (like mars-timer-ost.html) - call immediately after cancel
                 // - Desktop: small delay is fine
                 if (platform === 'ios') {
                     setTimeout(speakNow, 100);
                 } else if (platform === 'android') {
-                    requestAnimationFrame(speakNow);
+                    // Android: call immediately, no rAF or setTimeout (matches working version)
+                    speakNow();
                 } else {
                     setTimeout(speakNow, 50);
                 }
@@ -1011,7 +1012,7 @@
             const firstPlayer = players[0][1];
             console.log('[GAME] Starting game, first player:', firstPlayer.name);
             playTurnStart();
-            TTS.speak(`Tura: ${firstPlayer.name}`);
+            TTS.speak(firstPlayer.name);
         }
         
         function startGameListener() {
@@ -1161,7 +1162,7 @@
                                 }
                                 state.pendingTurnAnnounceTimeoutId = setTimeout(() => {
                                     playTurnStart();
-                                    TTS.speak(`Tura: ${currentPlayer.name}`);
+                                    TTS.speak(currentPlayer.name);
                                     state.pendingTurnAnnounceTimeoutId = null;
                                 }, baseDelay + extraDelay);
                             }
