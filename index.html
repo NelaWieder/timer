@@ -9,260 +9,9 @@
     <meta name="theme-color" content="#0a0118">
     <title>Mars Timer | Multiplayer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800&subset=latin-ext&display=swap" rel="stylesheet">
-    
-    <style>
-        :root {
-            --primary: #a855f7;
-            --primary-light: #c084fc;
-            --primary-dark: #7c3aed;
-            --accent-pink: #ec4899;
-            --accent-cyan: #22d3ee;
-            --accent-blue: #3b82f6;
-            --bg-dark: #0a0118;
-            --bg-darker: #050010;
-            --surface: #1a0a2e;
-            --surface-light: #2d1b4e;
-            --text-primary: #f5f0ff;
-            --text-secondary: #c4b5fd;
-            --text-muted: #7c6b9e;
-            --glow-purple: rgba(168, 85, 247, 0.5);
-            --glow-pink: rgba(236, 72, 153, 0.4);
-            --glow-cyan: rgba(34, 211, 238, 0.4);
-            --success: #4ade80;
-            --warning: #fbbf24;
-            --danger: #f43f5e;
-            --font-display: 'Rajdhani', 'Exo 2', sans-serif;
-            --font-body: 'Exo 2', sans-serif;
-            --radius-sm: 4px;
-            --radius-md: 8px;
-            --radius-lg: 16px;
-            --transition-fast: 150ms ease;
-            --transition-normal: 300ms ease;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        html, body { height: 100%; overflow: hidden; touch-action: manipulation; }
-        body { 
-            font-family: var(--font-body); 
-            background: var(--bg-dark); 
-            color: var(--text-primary); 
-            min-height: 100vh; 
-            min-height: 100dvh; 
-            display: flex; 
-            flex-direction: column;
-            -webkit-font-smoothing: antialiased;
-        }
-        
-        .galaxy-bg {
-            position: fixed;
-            inset: 0;
-            z-index: -2;
-            background: 
-                radial-gradient(ellipse 50% 40% at 45% 40%, rgba(236, 72, 153, 0.35) 0%, transparent 50%),
-                radial-gradient(ellipse 70% 50% at 20% 30%, rgba(34, 211, 238, 0.3) 0%, transparent 45%),
-                radial-gradient(ellipse 60% 40% at 80% 65%, rgba(34, 211, 238, 0.25) 0%, transparent 40%),
-                radial-gradient(ellipse 80% 55% at 60% 25%, rgba(168, 85, 247, 0.3) 0%, transparent 50%),
-                radial-gradient(ellipse 65% 50% at 25% 70%, rgba(139, 92, 246, 0.25) 0%, transparent 45%),
-                linear-gradient(180deg, #030008 0%, #0a0118 25%, #0f0225 50%, #0a0118 75%, #030008 100%);
-        }
-        
-        .stars {
-            position: fixed;
-            inset: 0;
-            z-index: -1;
-            background-image: 
-                radial-gradient(2px 2px at 8% 12%, rgba(168, 85, 247, 0.9), transparent),
-                radial-gradient(2px 2px at 15% 38%, rgba(255,255,255,0.8), transparent),
-                radial-gradient(2px 2px at 22% 72%, rgba(34, 211, 238, 0.8), transparent),
-                radial-gradient(2px 2px at 35% 85%, rgba(255,255,255,0.7), transparent),
-                radial-gradient(2px 2px at 48% 52%, rgba(255,255,255,0.6), transparent),
-                radial-gradient(2px 2px at 55% 32%, rgba(34, 211, 238, 0.7), transparent),
-                radial-gradient(2px 2px at 75% 58%, rgba(255,255,255,0.6), transparent),
-                radial-gradient(2px 2px at 82% 42%, rgba(168, 85, 247, 0.8), transparent),
-                radial-gradient(1px 1px at 3% 28%, rgba(255,255,255,0.4), transparent),
-                radial-gradient(1px 1px at 50% 42%, rgba(255,255,255,0.3), transparent),
-                radial-gradient(1px 1px at 90% 88%, rgba(255,255,255,0.3), transparent);
-            animation: twinkle 5s ease-in-out infinite;
-        }
-        @keyframes twinkle { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.5; } }
-        
-        .bg-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: -1;
-            background-color: rgba(10, 1, 24, 0.4);
-        }
-        
-        .screen { display: none; flex-direction: column; height: 100%; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-        .screen.active { display: flex; }
-        
-        /* LOBBY SCREEN */
-        .lobby-screen { justify-content: center; align-items: center; padding: 24px; text-align: center; }
-        .lobby-logo { margin-bottom: 32px; }
-        .lobby-logo h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 8vw, 2.4rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--primary) 50%, var(--accent-pink) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .lobby-logo p { font-size: 0.75rem; color: var(--text-secondary); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 4px; }
-        
-        .lobby-actions { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 300px; }
-        .lobby-btn { padding: 18px 24px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-primary); border: 2px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); cursor: pointer; transition: all var(--transition-normal); }
-        .lobby-btn.primary { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); box-shadow: 0 0 30px var(--glow-purple); }
-        .lobby-btn.secondary { background: transparent; }
-        .lobby-btn:hover { transform: translateY(-2px); box-shadow: 0 0 40px var(--glow-purple); }
-        .lobby-btn:active { transform: scale(0.98); }
-        
-        .lobby-divider { display: flex; align-items: center; gap: 16px; color: var(--text-muted); font-size: 0.75rem; margin: 8px 0; }
-        .lobby-divider::before, .lobby-divider::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--primary-dark), transparent); }
-        
-        .join-form { display: none; flex-direction: column; gap: 16px; width: 100%; max-width: 300px; margin-top: 24px; }
-        .join-form.active { display: flex; }
-        .join-input { padding: 16px; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; text-align: center; color: var(--text-primary); background: var(--surface); border: 2px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-md); outline: none; }
-        .join-input:focus { border-color: var(--primary); box-shadow: 0 0 20px var(--glow-purple); }
-        .join-input::placeholder { color: var(--text-muted); letter-spacing: 0.2em; font-size: 1rem; }
-        
-        /* WAITING ROOM */
-        .waiting-screen { padding: 24px; }
-        .room-header { text-align: center; margin-bottom: 24px; }
-        .room-code-label { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
-        .room-code { font-family: var(--font-display); font-size: 3rem; font-weight: 700; letter-spacing: 0.3em; color: var(--accent-cyan); text-shadow: 0 0 30px var(--glow-cyan); }
-        .qr-container { margin: 16px auto; padding: 12px; background: white; border-radius: var(--radius-md); width: fit-content; }
-        .qr-container canvas { display: block; }
-        
-        .time-setting-mini { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 16px 0; padding: 12px; background: var(--surface); border-radius: var(--radius-md); }
-        .time-btn-mini { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 1.3rem; cursor: pointer; }
-        .time-btn-mini:hover { background: rgba(168, 85, 247, 0.25); }
-        .time-display-mini { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; min-width: 60px; text-align: center; }
-        .time-label-mini { font-size: 0.7rem; color: var(--text-muted); }
-        
-        .players-waiting { flex: 1; overflow-y: auto; }
-        .players-waiting-title { font-family: var(--font-display); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); margin-bottom: 16px; }
-        .player-waiting-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: linear-gradient(135deg, var(--surface), var(--bg-dark)); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: var(--radius-md); margin-bottom: 10px; }
-        .player-waiting-item.offline { opacity: 0.4; }
-        .player-waiting-color { width: 32px; height: 32px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.2); }
-        .player-waiting-name { flex: 1; font-weight: 500; }
-        .player-waiting-host { font-size: 0.7rem; color: var(--warning); text-transform: uppercase; letter-spacing: 0.1em; }
-        .player-waiting-you { font-size: 0.7rem; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.1em; }
-        
-        .waiting-actions { margin-top: auto; padding-top: 16px; }
-        .start-game-btn { width: 100%; padding: 18px; font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-primary); background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--accent-pink)); border: 2px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); cursor: pointer; box-shadow: 0 0 30px var(--glow-purple); }
-        .start-game-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-        .leave-btn { width: 100%; padding: 14px; margin-top: 10px; font-family: var(--font-display); font-size: 0.85rem; font-weight: 600; color: var(--danger); background: transparent; border: 1px solid rgba(244, 63, 94, 0.3); border-radius: var(--radius-md); cursor: pointer; }
-        
-        /* NAME INPUT MODAL */
-        .name-modal { position: fixed; inset: 0; background: rgba(5, 0, 16, 0.9); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 300; backdrop-filter: blur(10px); }
-        .name-modal.active { display: flex; }
-        .name-modal-content { background: var(--surface); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-lg); padding: 32px; width: 100%; max-width: 340px; text-align: center; }
-        .name-modal h2 { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); }
-        .name-modal p { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px; }
-        .name-input { width: 100%; padding: 14px; font-family: var(--font-body); font-size: 1rem; text-align: center; color: var(--text-primary); background: var(--bg-dark); border: 2px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-md); outline: none; margin-bottom: 16px; }
-        .name-input:focus { border-color: var(--primary); }
-        .color-picker { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
-        .color-option { width: 40px; height: 40px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: all var(--transition-fast); }
-        .color-option:hover { transform: scale(1.1); }
-        .color-option.selected { border-color: white; box-shadow: 0 0 15px currentColor; }
-        .color-option.red { background: linear-gradient(135deg, #f43f5e, #be123c); }
-        .color-option.blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
-        .color-option.green { background: linear-gradient(135deg, #22c55e, #15803d); }
-        .color-option.yellow { background: linear-gradient(135deg, #facc15, #ca8a04); }
-        .color-option.black { background: linear-gradient(135deg, #6b7280, #1f2937); }
-        
-        /* GAME SCREEN */
-        .game-screen { position: relative; }
-        .generation-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: linear-gradient(180deg, rgba(10, 1, 24, 0.85), rgba(10, 1, 24, 0.5)); border-bottom: 1px solid rgba(168, 85, 247, 0.2); backdrop-filter: blur(10px); }
-        .generation-info { display: flex; align-items: baseline; gap: 6px; }
-        .game-timer { font-family: var(--font-display); font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); padding: 5px 12px; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: 16px; }
-        .generation-label { font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase; }
-        .generation-number { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--primary); text-shadow: 0 0 20px var(--glow-purple); }
-        .menu-btn { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; }
-        .menu-btn:hover { border-color: var(--primary); color: var(--primary); }
-        
-        .players-strip { display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto; scrollbar-width: none; background: linear-gradient(180deg, rgba(10, 1, 24, 0.3), transparent); }
-        .players-strip::-webkit-scrollbar { display: none; }
-        .player-chip { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: linear-gradient(135deg, var(--surface), var(--bg-darker)); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; font-family: var(--font-body); font-size: 0.8rem; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
-        .player-chip.active { background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(139, 92, 246, 0.2)); border-color: var(--primary); box-shadow: 0 0 15px var(--glow-purple); }
-        .player-chip.passed-gen { opacity: 0.25; text-decoration: line-through; }
-        .player-chip.offline { opacity: 0.4; }
-        .player-chip-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
-        .player-chip-status { font-family: var(--font-display); font-size: 0.6rem; font-weight: 600; padding: 2px 6px; background: rgba(0,0,0,0.4); border-radius: 8px; text-transform: uppercase; }
-        
-        .timer-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; min-height: 0; }
-        .current-player-name { font-family: var(--font-display); font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; text-shadow: 0 0 30px currentColor; }
-        .current-player-label { font-family: var(--font-body); font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 20px; }
-        .timer-display { position: relative; width: min(260px, 70vw); height: min(260px, 70vw); display: flex; align-items: center; justify-content: center; }
-        .mars-planet { position: absolute; width: 78%; height: 78%; border-radius: 50%; overflow: hidden; box-shadow: inset -18px -12px 35px rgba(0,0,0,0.5), inset 10px 10px 20px rgba(255,180,120,0.12), 0 0 35px var(--glow-purple), 0 0 70px var(--glow-pink); }
-        .mars-planet img { width: 145%; height: 145%; object-fit: cover; object-position: center; margin: -22.5%; filter: brightness(1.15) saturate(1.2) contrast(1.08); }
-        .timer-overlay { position: absolute; width: 78%; height: 78%; border-radius: 50%; background: radial-gradient(circle, rgba(10,1,24,0.25) 0%, rgba(10,1,24,0.45) 100%); }
-        .timer-ring { position: absolute; inset: 0; }
-        .timer-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-        .timer-ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 12; }
-        .timer-ring-progress { fill: none; stroke: url(#timerGradient); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 816.81; stroke-dashoffset: 816.81; transition: stroke-dashoffset 0.2s linear; filter: drop-shadow(0 0 10px var(--glow-purple)); }
-        .timer-ring-progress.overtime { stroke: var(--danger); filter: drop-shadow(0 0 15px rgba(244, 63, 94, 0.9)); }
-        .timer-text { font-family: var(--font-display); font-size: clamp(2.8rem, 15vw, 4.2rem); font-weight: 700; color: #ffffff; text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7), 0 0 40px var(--glow-purple); position: relative; z-index: 10; }
-        .timer-text.overtime { color: var(--danger); animation: overtimePulse 1s ease-in-out infinite; }
-        @keyframes overtimePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        .timer-text.warning { animation: pulse-warning 0.5s ease infinite; }
-        @keyframes pulse-warning { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        
-        .action-area { padding: 16px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
-        .pass-btn { width: 100%; padding: clamp(18px, 5vw, 26px); font-family: var(--font-display); font-size: clamp(1.3rem, 5vw, 1.7rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-primary); background: linear-gradient(135deg, var(--primary-dark), var(--primary)); border: 2px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); cursor: pointer; box-shadow: 0 8px 32px var(--glow-purple); position: relative; overflow: hidden; }
-        .pass-btn:active { transform: scale(0.98); }
-        .pass-btn:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
-        .secondary-actions { display: flex; gap: 10px; margin-top: 12px; }
-        .action-btn { flex: 1; padding: 14px 10px; font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); background: linear-gradient(135deg, var(--surface), var(--bg-darker)); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: var(--radius-md); cursor: pointer; }
-        .action-btn:hover { border-color: rgba(168, 85, 247, 0.4); color: var(--text-primary); }
-        .action-btn:active { transform: scale(0.98); }
-        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .action-btn.pass-gen { position: relative; overflow: hidden; }
-        .action-btn.pass-gen .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, rgba(168, 85, 247, 0.4), rgba(139, 92, 246, 0.3)); }
-        .action-btn.pass-gen span { position: relative; z-index: 1; }
-        .action-btn.admin-time { border-color: rgba(251, 191, 36, 0.4); color: var(--warning); }
-        .action-btn.admin-time.active { background: rgba(251, 191, 36, 0.2); }
-        .action-btn.host-only { display: none; }
-        .is-host .action-btn.host-only { display: block; }
-        
-        .admin-overlay { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(10, 1, 24, 0.95), rgba(5, 0, 16, 0.98)); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; z-index: 100; backdrop-filter: blur(10px); }
-        .admin-overlay.active { display: flex; }
-        .admin-overlay-icon { width: 80px; height: 80px; margin-bottom: 20px; color: var(--warning); filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5)); animation: iconPulse 2s ease-in-out infinite; }
-        @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-        .admin-overlay h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 6vw, 2rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--warning); margin-bottom: 10px; }
-        .admin-overlay p { color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem; }
-        .resume-btn { padding: 18px 48px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bg-dark); background: linear-gradient(135deg, var(--warning), #fcd34d); border: none; border-radius: var(--radius-md); cursor: pointer; box-shadow: 0 0 30px rgba(251, 191, 36, 0.4); }
-        .resume-btn:hover { transform: translateY(-2px); }
-        .resume-btn.host-only { display: none; }
-        .is-host .resume-btn.host-only { display: inline-block; }
-        
-        .host-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(320px, 85vw); background: linear-gradient(180deg, var(--bg-darker), var(--bg-dark)); border-left: 1px solid rgba(168, 85, 247, 0.3); transform: translateX(100%); transition: transform var(--transition-normal); z-index: 200; overflow-y: auto; padding: 20px; padding-top: calc(20px + env(safe-area-inset-top)); }
-        .host-panel.open { transform: translateX(0); }
-        .host-panel-backdrop { position: fixed; inset: 0; background: rgba(5,0,16,0.7); opacity: 0; visibility: hidden; transition: all var(--transition-normal); z-index: 199; backdrop-filter: blur(4px); }
-        .host-panel-backdrop.open { opacity: 1; visibility: visible; }
-        .host-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 1px solid rgba(168, 85, 247, 0.2); }
-        .host-panel-header h2 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; color: var(--primary); }
-        .close-panel-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); font-size: 1.2rem; }
-        .host-panel-section { margin-bottom: 24px; }
-        .host-panel-section-title { font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
-        .host-action-btn { width: 100%; padding: 14px; margin-bottom: 8px; font-family: var(--font-body); font-size: 0.85rem; font-weight: 500; color: var(--text-primary); background: linear-gradient(135deg, var(--surface), var(--bg-dark)); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: var(--radius-md); cursor: pointer; text-align: left; }
-        .host-action-btn:hover { border-color: rgba(168, 85, 247, 0.4); }
-        .host-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .host-action-btn.danger { color: var(--danger); border-color: rgba(244, 63, 94, 0.3); }
-        .host-action-btn.danger:hover { background: rgba(244, 63, 94, 0.1); }
-        .next-gen-btn { background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue)); border-color: rgba(34, 211, 238, 0.5); box-shadow: 0 0 20px var(--glow-cyan); text-align: center; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-        
-        .room-info-small { font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(168, 85, 247, 0.2); }
-        .room-info-small span { color: var(--accent-cyan); font-weight: 600; letter-spacing: 0.1em; }
-        
-        .connection-status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 6px 16px; background: var(--surface); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 20px; font-size: 0.7rem; color: var(--text-secondary); z-index: 250; display: none; }
-        .connection-status.offline { display: block; border-color: var(--danger); color: var(--danger); }
-        
-        .svg-defs { position: absolute; width: 0; height: 0; }
-        
-        @media (max-height: 500px) and (orientation: landscape) {
-            .timer-area { padding: 8px; }
-            .timer-display { width: min(180px, 40vh); height: min(180px, 40vh); }
-            .current-player-name { font-size: 1.2rem; margin-bottom: 0; }
-            .current-player-label { margin-bottom: 8px; }
-            .action-area { padding: 8px 16px; }
-            .pass-btn { padding: 12px; }
-        }
-    </style>
 </head>
 <body>
     <div class="galaxy-bg"></div>
@@ -420,7 +169,7 @@
     <!-- Firebase -->
     <script type="module">
         // =============================================
-        // FIREBASE CONFIG - UZUPEŁNIJ SWOJE DANE
+        // FIREBASE CONFIG
         // =============================================
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { 
@@ -428,16 +177,13 @@
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
         
         const firebaseConfig = {
-            // ========================================
-            // UZUPEŁNIJ PONIŻSZE DANE Z FIREBASE CONSOLE
-            // ========================================
-        apiKey: "AIzaSyCQwMpiRgAIXs7g6el_35HepBqOcm6gQVU",
-        authDomain: "tm-timer-nw.firebaseapp.com",
-        databaseURL: "https://tm-timer-nw-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "tm-timer-nw",
-        storageBucket: "tm-timer-nw.firebasestorage.app",
-        messagingSenderId: "425133932279",
-        appId: "1:425133932279:web:c631018437f5dcdf115df2"
+            apiKey: "AIzaSyCQwMpiRgAIXs7g6el_35HepBqOcm6gQVU",
+            authDomain: "tm-timer-nw.firebaseapp.com",
+            databaseURL: "https://tm-timer-nw-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "tm-timer-nw",
+            storageBucket: "tm-timer-nw.firebasestorage.app",
+            messagingSenderId: "425133932279",
+            appId: "1:425133932279:web:c631018437f5dcdf115df2"
         };
         
         const app = initializeApp(firebaseConfig);
@@ -448,6 +194,14 @@
         // =============================================
         const COLORS = ['blue', 'red', 'green', 'yellow', 'black'];
         const COLOR_HEX = { red: '#f43f5e', blue: '#3b82f6', green: '#22c55e', yellow: '#facc15', black: '#6b7280' };
+        
+        // Polish ordinal numbers for generation announcement
+        const POLISH_ORDINALS = {
+            1: 'pierwsze', 2: 'drugie', 3: 'trzecie', 4: 'czwarte', 5: 'piąte',
+            6: 'szóste', 7: 'siódme', 8: 'ósme', 9: 'dziewiąte', 10: 'dziesiąte',
+            11: 'jedenaste', 12: 'dwunaste', 13: 'trzynaste', 14: 'czternaste', 15: 'piętnaste',
+            16: 'szesnaste', 17: 'siedemnaste', 18: 'osiemnaste', 19: 'dziewiętnaste', 20: 'dwudzieste'
+        };
         
         // =============================================
         // STATE
@@ -467,10 +221,178 @@
             audioContext: null,
             holdTimeout: null,
             holdProgress: 0,
-            lastWarningTime: -1
+            lastWarningTime: -1,
+            warningPlayed: false,
+            timeUpPlayed: false
         };
         
         let unsubscribers = [];
+        
+        // =============================================
+        // TTS (TEXT-TO-SPEECH) MODULE - CROSS-PLATFORM
+        // =============================================
+        const TTS = {
+            isUnlocked: false,
+            selectedVoice: null,
+            voicesLoaded: false,
+            speakQueue: [],
+            isSpeaking: false,
+            
+            // Detect platform
+            getPlatform() {
+                const ua = navigator.userAgent;
+                if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return 'ios';
+                if (/Android/.test(ua)) return 'android';
+                return 'desktop';
+            },
+            
+            // Initialize TTS - call after user interaction
+            init() {
+                if (!('speechSynthesis' in window)) {
+                    console.warn('Speech Synthesis not supported');
+                    return false;
+                }
+                
+                // Force load voices
+                this.loadVoices();
+                
+                // iOS/Safari: voices load asynchronously
+                if (speechSynthesis.onvoiceschanged !== undefined) {
+                    speechSynthesis.onvoiceschanged = () => this.loadVoices();
+                }
+                
+                return true;
+            },
+            
+            // Load and select best voice
+            loadVoices() {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length === 0) return;
+                
+                this.voicesLoaded = true;
+                const platform = this.getPlatform();
+                
+                // Try to find Polish voice
+                const plVoices = voices.filter(v => v.lang.startsWith('pl'));
+                
+                if (plVoices.length > 0) {
+                    // Prefer Google/native voices
+                    const preferredVoice = plVoices.find(v => 
+                        v.name.includes('Google') || 
+                        v.name.includes('Microsoft') ||
+                        v.name.includes('Zosia') ||
+                        v.localService === false
+                    ) || plVoices[0];
+                    
+                    this.selectedVoice = preferredVoice;
+                    console.log('TTS: Selected voice:', preferredVoice.name);
+                } else {
+                    // No Polish voice found - will use lang='pl-PL' fallback
+                    this.selectedVoice = null;
+                    console.log('TTS: No Polish voice found, using lang fallback');
+                }
+            },
+            
+            // Unlock TTS (required for iOS/Safari)
+            unlock() {
+                if (this.isUnlocked) return Promise.resolve(true);
+                
+                return new Promise((resolve) => {
+                    // Create silent utterance to unlock
+                    const utterance = new SpeechSynthesisUtterance('');
+                    utterance.volume = 0;
+                    utterance.onend = () => {
+                        this.isUnlocked = true;
+                        console.log('TTS: Unlocked successfully');
+                        resolve(true);
+                    };
+                    utterance.onerror = () => {
+                        // Try alternative unlock
+                        speechSynthesis.cancel();
+                        this.isUnlocked = true;
+                        resolve(true);
+                    };
+                    
+                    speechSynthesis.speak(utterance);
+                    
+                    // Timeout fallback
+                    setTimeout(() => {
+                        this.isUnlocked = true;
+                        resolve(true);
+                    }, 500);
+                });
+            },
+            
+            // Main speak function
+            speak(text, priority = false) {
+                if (!state.isHost || state.isMuted || !('speechSynthesis' in window)) return;
+                
+                if (priority) {
+                    // Cancel current speech for priority messages
+                    speechSynthesis.cancel();
+                    this.speakQueue = [];
+                }
+                
+                // Add to queue
+                this.speakQueue.push(text);
+                this.processQueue();
+            },
+            
+            // Process speech queue
+            processQueue() {
+                if (this.isSpeaking || this.speakQueue.length === 0) return;
+                
+                const text = this.speakQueue.shift();
+                this.isSpeaking = true;
+                
+                // Cancel any pending speech
+                speechSynthesis.cancel();
+                
+                // Small delay for iOS stability
+                setTimeout(() => {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'pl-PL';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 0.9;
+                    utterance.volume = 1.0;
+                    
+                    // Set voice if available
+                    if (this.selectedVoice) {
+                        utterance.voice = this.selectedVoice;
+                    }
+                    
+                    utterance.onend = () => {
+                        this.isSpeaking = false;
+                        // Process next in queue
+                        setTimeout(() => this.processQueue(), 100);
+                    };
+                    
+                    utterance.onerror = (e) => {
+                        console.warn('TTS error:', e.error);
+                        this.isSpeaking = false;
+                        setTimeout(() => this.processQueue(), 100);
+                    };
+                    
+                    // Workaround for Chrome bug where speech stops after ~15s
+                    const platform = this.getPlatform();
+                    if (platform === 'desktop') {
+                        // Resume if paused
+                        if (speechSynthesis.paused) {
+                            speechSynthesis.resume();
+                        }
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }, 50);
+            },
+            
+            // Stop all speech
+            stop() {
+                speechSynthesis.cancel();
+                this.speakQueue = [];
+                this.isSpeaking = false;
+            }
+        };
         
         // =============================================
         // DOM ELEMENTS
@@ -562,72 +484,115 @@
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
         
+        // Get Polish ordinal for generation number
+        function getPolishOrdinal(num) {
+            if (POLISH_ORDINALS[num]) return POLISH_ORDINALS[num];
+            // For numbers > 20, just say the number
+            return num.toString();
+        }
+        
         // =============================================
-        // AUDIO (HOST ONLY!)
+        // AUDIO (HOST ONLY!) - SOUND EFFECTS
         // =============================================
         function initAudio() {
             if (!state.audioContext) {
                 state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-            if (state.audioContext.state === 'suspended') state.audioContext.resume();
+            if (state.audioContext.state === 'suspended') {
+                state.audioContext.resume();
+            }
+            
+            // Initialize TTS
+            TTS.init();
+            TTS.unlock();
         }
         
-        function playBeep(freq = 800, dur = 150, type = 'sine') {
+        function playBeep(freq = 800, dur = 150, type = 'sine', volume = 0.3) {
             if (!state.isHost || !state.audioContext || state.isMuted) return;
-            const osc = state.audioContext.createOscillator();
-            const gain = state.audioContext.createGain();
-            osc.connect(gain);
-            gain.connect(state.audioContext.destination);
-            osc.frequency.value = freq;
-            osc.type = type;
-            gain.gain.setValueAtTime(0.3, state.audioContext.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, state.audioContext.currentTime + dur / 1000);
-            osc.start(state.audioContext.currentTime);
-            osc.stop(state.audioContext.currentTime + dur / 1000);
+            
+            try {
+                // Resume context if suspended
+                if (state.audioContext.state === 'suspended') {
+                    state.audioContext.resume();
+                }
+                
+                const osc = state.audioContext.createOscillator();
+                const gain = state.audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(state.audioContext.destination);
+                osc.frequency.value = freq;
+                osc.type = type;
+                gain.gain.setValueAtTime(volume, state.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, state.audioContext.currentTime + dur / 1000);
+                osc.start(state.audioContext.currentTime);
+                osc.stop(state.audioContext.currentTime + dur / 1000);
+            } catch (e) {
+                console.warn('Audio playback error:', e);
+            }
         }
         
+        // Sound: Turn start (when switching to new player)
         function playTurnStart() {
             playBeep(600, 100);
             setTimeout(() => playBeep(800, 150), 120);
         }
         
+        // Sound: 5-second warning (short beep)
         function playWarning() {
-            playBeep(400, 200, 'square');
+            playBeep(880, 150, 'sine', 0.4);
         }
         
+        // Sound: Time's up (loud sound at 00:00)
         function playTimeUp() {
-            playBeep(300, 300, 'sawtooth');
-            setTimeout(() => playBeep(250, 400, 'sawtooth'), 350);
+            playBeep(300, 300, 'sawtooth', 0.5);
+            setTimeout(() => playBeep(250, 400, 'sawtooth', 0.5), 350);
         }
         
-        function speak(text) {
-            if (!state.isHost || state.isMuted || !('speechSynthesis' in window)) return;
-            speechSynthesis.cancel();
-            const utt = new SpeechSynthesisUtterance(text);
-            utt.lang = 'pl-PL';
-            utt.rate = 1.0;
-            utt.pitch = 0.85;
-            const voices = speechSynthesis.getVoices();
-            const plVoice = voices.find(v => v.lang.startsWith('pl'));
-            if (plVoice) utt.voice = plVoice;
-            speechSynthesis.speak(utt);
+        // TTS wrapper function
+        function speak(text, priority = false) {
+            TTS.speak(text, priority);
         }
         
         // =============================================
-        // WAKE LOCK
+        // WAKE LOCK API
         // =============================================
         let wakeLock = null;
+        
         async function requestWakeLock() {
-            if ('wakeLock' in navigator) {
+            if (!('wakeLock' in navigator)) return;
+            
+            // Release existing lock first
+            if (wakeLock !== null) {
                 try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', () => { wakeLock = null; });
-                } catch (err) { console.log('Wake Lock error:', err); }
+                    await wakeLock.release();
+                    wakeLock = null;
+                } catch (e) {}
+            }
+            
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock: Acquired');
+                
+                wakeLock.addEventListener('release', () => {
+                    console.log('Wake Lock: Released');
+                    wakeLock = null;
+                });
+            } catch (err) {
+                console.log('Wake Lock error:', err.name, err.message);
             }
         }
         
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+        // Re-acquire wake lock when page becomes visible again
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                // Re-acquire wake lock
+                await requestWakeLock();
+                
+                // Resume audio context if needed
+                if (state.audioContext && state.audioContext.state === 'suspended') {
+                    state.audioContext.resume();
+                }
+            }
         });
         
         // =============================================
@@ -858,6 +823,11 @@
             if (state.localTimerInterval) clearInterval(state.localTimerInterval);
             if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
             
+            // Reset warning flags
+            state.warningPlayed = false;
+            state.timeUpPlayed = false;
+            state.lastWarningTime = -1;
+            
             // Listen for game state changes
             const roomRef = ref(db, `rooms/${state.roomId}`);
             const unsubGame = onValue(roomRef, (snapshot) => {
@@ -867,11 +837,21 @@
                 }
                 
                 const data = snapshot.val();
+                const previousPlayerIndex = state.gameState?.currentPlayerIndex;
+                const previousGeneration = state.gameState?.generation;
+                
                 state.gameState = data;
                 state.players = data.players || {};
                 
                 if (data.state === 'playing') {
                     updateGameUI(data);
+                    
+                    // Reset warning flags when turn changes
+                    if (previousPlayerIndex !== data.currentPlayerIndex) {
+                        state.warningPlayed = false;
+                        state.timeUpPlayed = false;
+                        state.lastWarningTime = -1;
+                    }
                 } else if (data.state === 'waiting') {
                     // Game ended, back to waiting room
                     enterWaitingRoom();
@@ -890,19 +870,24 @@
                 updateTimerDisplay(remaining);
                 
                 // Host plays sounds at specific times
-                if (state.isHost) {
+                if (state.isHost && !state.isMuted) {
                     const roundedRemaining = Math.floor(remaining);
-                    if (roundedRemaining === 5 && state.lastWarningTime !== 5) {
+                    
+                    // EXACTLY at 5 seconds - play warning beep
+                    if (roundedRemaining === 5 && !state.warningPlayed && remaining <= 5.1 && remaining > 4.9) {
                         playWarning();
-                        state.lastWarningTime = 5;
-                    } else if (roundedRemaining === 0 && state.lastWarningTime !== 0) {
+                        state.warningPlayed = true;
+                        console.log('Warning played at', remaining);
+                    }
+                    
+                    // EXACTLY at 0 seconds - play time up sound
+                    if (roundedRemaining <= 0 && !state.timeUpPlayed && remaining <= 0.1 && remaining > -0.5) {
                         playTimeUp();
-                        state.lastWarningTime = 0;
-                    } else if (roundedRemaining !== 5 && roundedRemaining !== 0) {
-                        state.lastWarningTime = -1;
+                        state.timeUpPlayed = true;
+                        console.log('Time up played at', remaining);
                     }
                 }
-            }, 100);
+            }, 50); // 50ms for more precise timing
             
             // Game elapsed timer
             state.gameTimerInterval = setInterval(() => {
@@ -996,6 +981,8 @@
         // =============================================
         // GAME ACTIONS
         // =============================================
+        
+        // Regular PASS - just passes turn to next player
         async function pass() {
             if (!state.gameState) return;
             
@@ -1004,7 +991,7 @@
             
             if (currentPlayerId !== state.playerId) return;
             
-            // Find next active player
+            // Find next active player (not passedGen)
             let nextIndex = state.gameState.currentPlayerIndex;
             let attempts = 0;
             do {
@@ -1020,12 +1007,14 @@
                 turnStartTime: Date.now()
             });
             
+            // Host announces next player
             if (state.isHost) {
                 playTurnStart();
                 speak(nextPlayer?.name);
             }
         }
         
+        // PASS GEN - player passes for the generation
         async function passGen() {
             if (!state.gameState) return;
             
@@ -1034,21 +1023,25 @@
             
             if (currentPlayerId !== state.playerId) return;
             
-            // Mark as passed
+            // Mark current player as passed
             await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), {
                 passedGen: true
             });
             
-            // Check if all passed
+            // Check how many active players remain AFTER this player passes
             const updatedPlayers = { ...state.players };
             updatedPlayers[state.playerId].passedGen = true;
             
-            const allPassed = playerOrder.every(pid => updatedPlayers[pid]?.passedGen);
+            const activePlayers = playerOrder.filter(pid => !updatedPlayers[pid]?.passedGen);
+            const allPassed = activePlayers.length === 0;
             
             if (allPassed) {
-                // End of generation
+                // SCENARIO B: This was the LAST active player
+                // Say "Koniec pokolenia {numer}" (NOT "X spasował")
                 if (state.isHost) {
-                    speak('Koniec pokolenia ' + state.gameState.generation);
+                    const genNum = state.gameState.generation;
+                    const ordinal = getPolishOrdinal(genNum);
+                    speak(`Koniec pokolenia ${ordinal}`, true);
                 }
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
@@ -1058,6 +1051,9 @@
                     overlayButton: '🚀 Następne Pokolenie'
                 });
             } else {
+                // SCENARIO A: There are still other active players
+                // Say "{Imię} spasował", then announce next player
+                
                 // Find next active player
                 let nextIndex = state.gameState.currentPlayerIndex;
                 let attempts = 0;
@@ -1066,35 +1062,49 @@
                     attempts++;
                 } while (updatedPlayers[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
                 
-                const nextPlayer = state.players[playerOrder[nextIndex]];
+                const nextPlayerId = playerOrder[nextIndex];
+                const nextPlayer = state.players[nextPlayerId];
                 
                 if (state.isHost) {
-                    speak(state.playerName + ' spasował');
+                    // Announce who passed
+                    speak(`${state.playerName} spasował`);
+                    
+                    // After a delay, announce next player and play turn start sound
                     setTimeout(() => {
                         playTurnStart();
                         speak(nextPlayer?.name);
-                    }, 1200);
+                    }, 1500);
                 }
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
                     currentPlayerIndex: nextIndex,
-                    turnStartTime: Date.now() + (state.isHost ? 1200 : 0)
+                    turnStartTime: Date.now() + (state.isHost ? 1500 : 0) // Delay for host's speech
                 });
             }
         }
         
+        // NEXT GENERATION - start new generation
         async function nextGeneration() {
             if (!state.isHost || !state.gameState) return;
             
             const playerOrder = state.gameState.playerOrder;
+            const newGeneration = state.gameState.generation + 1;
             const newStartIndex = (state.gameState.startPlayerIndex + 1) % playerOrder.length;
             
-            // Reset all passedGen
+            // Get the first player of new generation
+            const firstPlayerId = playerOrder[newStartIndex];
+            const firstPlayer = state.players[firstPlayerId];
+            
+            // Announce new generation
+            const ordinal = getPolishOrdinal(newGeneration);
+            speak(`Pokolenie ${ordinal}`, true);
+            
+            // Reset all passedGen and update game state
             const updates = {
-                generation: state.gameState.generation + 1,
+                generation: newGeneration,
                 currentPlayerIndex: newStartIndex,
                 startPlayerIndex: newStartIndex,
-                turnStartTime: Date.now() + 1500,
+                turnStartTime: Date.now() + 2000, // Delay for speech
                 isPaused: false
             };
             
@@ -1104,20 +1114,23 @@
             
             await update(ref(db, `rooms/${state.roomId}`), updates);
             
-            speak('Pokolenie ' + (state.gameState.generation + 1));
+            // After generation announcement, announce first player
             setTimeout(() => {
                 playTurnStart();
-                speak(state.players[playerOrder[newStartIndex]]?.name);
-            }, 1500);
+                speak(firstPlayer?.name);
+            }, 2000);
         }
         
+        // ADMIN TIME - pause/resume game
         async function toggleAdminTime() {
             if (!state.isHost || !state.gameState) return;
             
             const isPaused = !state.gameState.isPaused;
             
             if (isPaused) {
-                speak('Admin time');
+                // Pausing - say "Admin time"
+                speak('Admin time', true);
+                
                 await update(ref(db, `rooms/${state.roomId}`), {
                     isPaused: true,
                     pausedAt: Date.now(),
@@ -1126,8 +1139,9 @@
                     overlayButton: 'Wznów grę'
                 });
             } else {
-                // Adjust turnStartTime
+                // Resuming - adjust turn time
                 const pauseDuration = Date.now() - (state.gameState.pausedAt || Date.now());
+                
                 await update(ref(db, `rooms/${state.roomId}`), {
                     isPaused: false,
                     turnStartTime: state.gameState.turnStartTime + pauseDuration
@@ -1135,18 +1149,22 @@
             }
         }
         
+        // FORCE NEXT TURN - host forces turn change
         async function forceNextTurn() {
             if (!state.isHost || !state.gameState) return;
             
             const playerOrder = state.gameState.playerOrder;
             let nextIndex = state.gameState.currentPlayerIndex;
             let attempts = 0;
+            
+            // Find next active player
             do {
                 nextIndex = (nextIndex + 1) % playerOrder.length;
                 attempts++;
             } while (state.players[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
             
-            const nextPlayer = state.players[playerOrder[nextIndex]];
+            const nextPlayerId = playerOrder[nextIndex];
+            const nextPlayer = state.players[nextPlayerId];
             
             await update(ref(db, `rooms/${state.roomId}`), {
                 currentPlayerIndex: nextIndex,
@@ -1165,6 +1183,9 @@
             // Clear intervals
             if (state.localTimerInterval) clearInterval(state.localTimerInterval);
             if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
+            
+            // Stop TTS
+            TTS.stop();
             
             // If we're in a room, update our status
             if (state.roomId && state.playerId) {
@@ -1186,6 +1207,8 @@
             state.gameState = null;
             state.players = {};
             state.lastWarningTime = -1;
+            state.warningPlayed = false;
+            state.timeUpPlayed = false;
             
             clearSession();
             document.body.classList.remove('is-host');
@@ -1318,6 +1341,9 @@
         el.muteBtn.addEventListener('click', () => {
             state.isMuted = !state.isMuted;
             el.muteBtn.textContent = state.isMuted ? '🔇 Włącz dźwięki' : '🔊 Wycisz dźwięki';
+            if (state.isMuted) {
+                TTS.stop();
+            }
         });
         
         el.leaveGameBtn.addEventListener('click', () => {
@@ -1341,6 +1367,13 @@
         // =============================================
         async function init() {
             requestWakeLock();
+            
+            // Pre-load voices for TTS
+            if ('speechSynthesis' in window) {
+                TTS.init();
+                // Force voice loading
+                speechSynthesis.getVoices();
+            }
             
             // Check URL for room code
             const urlParams = new URLSearchParams(window.location.search);
@@ -1393,12 +1426,6 @@
                     console.log('Reconnect failed:', e);
                 }
                 clearSession();
-            }
-            
-            // Load voices
-            if ('speechSynthesis' in window) {
-                speechSynthesis.getVoices();
-                speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
             }
         }
         
