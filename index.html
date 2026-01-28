@@ -226,6 +226,8 @@
             lastAnnouncedGeneration: 0,
             // If we announce "X spasował", defer the next "turn start" speech to avoid overlap
             deferNextTurnAnnouncementUntil: 0,
+            // Cancel pending "turn start" speech when state changes (e.g. Pass Gen)
+            pendingTurnAnnounceTimeoutId: null,
             warningPlayed: false,
             timeUpPlayed: false
         };
@@ -329,8 +331,10 @@
                     // NOTE: Some Android builds won't start synthesis for whitespace-only utterances.
                     // Use a short token but keep volume effectively silent.
                     const utterance = new SpeechSynthesisUtterance('a');
-                    utterance.volume = 0.0; // silent
-                    utterance.rate = 1.0;
+                    // On Android, volume=0 can result in "silent forever" behavior on some builds.
+                    // Keep it extremely low but non-zero.
+                    utterance.volume = platform === 'android' ? 0.001 : 0.0;
+                    utterance.rate = platform === 'android' ? 10 : 1.0;
                     utterance.lang = 'pl-PL';
                     
                     // Platform strategy:
@@ -408,8 +412,14 @@
 
                         const utterance = new SpeechSynthesisUtterance(text);
                         utterance.lang = 'pl-PL';
-                        utterance.rate = 1.0;
-                        utterance.pitch = 0.95;
+                        // Android: keep defaults (some devices go silent with non-default pitch/rate)
+                        if (platform === 'android') {
+                            utterance.rate = 1.0;
+                            utterance.pitch = 1.0;
+                        } else {
+                            utterance.rate = 1.0;
+                            utterance.pitch = 0.95;
+                        }
                         utterance.volume = 1.0;
 
                         // Voice selection strategy by platform
@@ -439,8 +449,29 @@
                             console.log('[TTS] ✓ Speech ended:', text);
                         };
 
+                        // Android "keep alive" resume tick (helps some Chrome builds)
+                        let resumeTicker = null;
+                        if (platform === 'android') {
+                            resumeTicker = setInterval(() => {
+                                try { speechSynthesis.resume(); } catch (_) {}
+                            }, 250);
+                        }
+
+                        const clearTicker = () => {
+                            if (resumeTicker) {
+                                clearInterval(resumeTicker);
+                                resumeTicker = null;
+                            }
+                        };
+
+                        utterance.onend = () => {
+                            console.log('[TTS] ✓ Speech ended:', text);
+                            clearTicker();
+                        };
+
                         utterance.onerror = (e) => {
                             console.error('[TTS] ✗ Speech error:', e.error, 'for text:', text);
+                            clearTicker();
 
                             // Retry once on error (except 'interrupted' which is normal)
                             if (e.error !== 'interrupted' && e.error !== 'canceled') {
@@ -451,9 +482,10 @@
                                     const retry = new SpeechSynthesisUtterance(text);
                                     retry.lang = 'pl-PL';
                                     retry.rate = 1.0;
-                                    retry.pitch = 0.95;
+                                    retry.pitch = platform === 'android' ? 1.0 : 0.95;
                                     retry.volume = 1.0;
                                     if (platform === 'android') {
+                                        // attempt 1: system default
                                         retry.voice = null;
                                         retry.lang = 'pl-PL';
                                     }
@@ -468,20 +500,39 @@
 
                         speechSynthesis.speak(utterance);
 
-                        // HARD ANDROID FALLBACK: if it didn't start, try again shortly with voice cleared
+                        // HARD ANDROID FALLBACK: if it didn't start, try again shortly with a different strategy
                         if (platform === 'android') {
                             setTimeout(() => {
                                 if (!speechSynthesis.speaking) {
                                     console.warn('[TTS] Android: not speaking after speak(), forcing retry');
                                     speechSynthesis.cancel();
+                                    // Try system default first...
                                     const retry2 = new SpeechSynthesisUtterance(text);
                                     retry2.voice = null;
                                     retry2.lang = 'pl-PL';
                                     retry2.rate = 1.0;
-                                    retry2.pitch = 0.95;
+                                    retry2.pitch = 1.0;
                                     retry2.volume = 1.0;
                                     if (speechSynthesis.paused) speechSynthesis.resume();
                                     speechSynthesis.speak(retry2);
+
+                                    // ...and if still not speaking, try a PL voice object (not by name)
+                                    setTimeout(() => {
+                                        if (!speechSynthesis.speaking) {
+                                            const voices = speechSynthesis.getVoices();
+                                            const plVoice = voices.find(v => v.lang && v.lang.startsWith('pl')) || null;
+                                            console.warn('[TTS] Android: retry with pl voice:', plVoice?.name || 'none');
+                                            speechSynthesis.cancel();
+                                            const retry3 = new SpeechSynthesisUtterance(text);
+                                            retry3.lang = 'pl-PL';
+                                            retry3.rate = 1.0;
+                                            retry3.pitch = 1.0;
+                                            retry3.volume = 1.0;
+                                            if (plVoice) retry3.voice = plVoice;
+                                            if (speechSynthesis.paused) speechSynthesis.resume();
+                                            speechSynthesis.speak(retry3);
+                                        }
+                                    }, 350);
                                 }
                             }, 300);
                         }
@@ -1003,6 +1054,13 @@
                         });
 
                         if (newlyPassed.length > 0) {
+                            // Cancel any pending "turn announce" from the previous snapshot,
+                            // otherwise it can fire right after "X spasował" and repeat the old player.
+                            if (state.pendingTurnAnnounceTimeoutId) {
+                                clearTimeout(state.pendingTurnAnnounceTimeoutId);
+                                state.pendingTurnAnnounceTimeoutId = null;
+                            }
+
                             const activeRemaining = playerOrder.filter(pid => !data.players?.[pid]?.passedGen).length;
 
                             if (activeRemaining === 0) {
@@ -1062,6 +1120,28 @@
                             const currentPlayer = data.players?.[currentPlayerId];
                             
                             if (currentPlayer) {
+                                // If the "current player" has already passed the generation,
+                                // never announce them as the active turn (wait/advance to a non-passed player).
+                                if (currentPlayer.passedGen) {
+                                    console.log('[TURN] Current player already passedGen, skipping announce:', currentPlayer.name);
+                                    // Host can self-heal by advancing to next active (no speech here).
+                                    const remaining = playerOrder.filter(pid => !data.players?.[pid]?.passedGen).length;
+                                    if (remaining > 0) {
+                                        let nextIndex = data.currentPlayerIndex ?? 0;
+                                        let attempts = 0;
+                                        do {
+                                            nextIndex = (nextIndex + 1) % playerOrder.length;
+                                            attempts++;
+                                        } while (data.players?.[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
+                                        update(ref(db, `rooms/${state.roomId}`), {
+                                            currentPlayerIndex: nextIndex,
+                                            turnStartTime: Date.now()
+                                        }).catch(() => {});
+                                    }
+                                    state.lastAnnouncedTurnTime = data.turnStartTime;
+                                    return;
+                                }
+
                                 console.log('[TURN] New turn detected! Player:', currentPlayer.name, 
                                            'Index:', data.currentPlayerIndex);
                                 
@@ -1075,9 +1155,14 @@
                                 const extraDelay = (state.deferNextTurnAnnouncementUntil && now < state.deferNextTurnAnnouncementUntil)
                                     ? (state.deferNextTurnAnnouncementUntil - now)
                                     : 0;
-                                setTimeout(() => {
+                                // Ensure only the latest turn announcement fires
+                                if (state.pendingTurnAnnounceTimeoutId) {
+                                    clearTimeout(state.pendingTurnAnnounceTimeoutId);
+                                }
+                                state.pendingTurnAnnounceTimeoutId = setTimeout(() => {
                                     playTurnStart();
-                                    TTS.speak(currentPlayer.name);
+                                    TTS.speak(`Tura: ${currentPlayer.name}`);
+                                    state.pendingTurnAnnounceTimeoutId = null;
                                 }, baseDelay + extraDelay);
                             }
                             
