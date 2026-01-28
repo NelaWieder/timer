@@ -54,13 +54,16 @@ body {
     position: fixed;
     inset: 0;
     z-index: -2;
-    background: 
-        radial-gradient(ellipse 50% 40% at 45% 40%, rgba(236, 72, 153, 0.35) 0%, transparent 50%),
-        radial-gradient(ellipse 70% 50% at 20% 30%, rgba(34, 211, 238, 0.3) 0%, transparent 45%),
-        radial-gradient(ellipse 60% 40% at 80% 65%, rgba(34, 211, 238, 0.25) 0%, transparent 40%),
-        radial-gradient(ellipse 80% 55% at 60% 25%, rgba(168, 85, 247, 0.3) 0%, transparent 50%),
-        radial-gradient(ellipse 65% 50% at 25% 70%, rgba(139, 92, 246, 0.25) 0%, transparent 45%),
-        linear-gradient(180deg, #030008 0%, #0a0118 25%, #0f0225 50%, #0a0118 75%, #030008 100%);
+    background-image: url('assets/background.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    /* Przyciemnienie obrazu dla lepszej czytelności */
+    filter: brightness(0.4) contrast(1.1);
+    -webkit-filter: brightness(0.4) contrast(1.1);
+    /* Fallback dla starszych przeglądarek */
+    background-color: #030008;
 }
 
 .stars {
@@ -87,7 +90,16 @@ body {
     position: fixed;
     inset: 0;
     z-index: -1;
-    background-color: rgba(10, 1, 24, 0.4);
+    /* Dodatkowe przyciemnienie dla lepszej czytelności tekstu */
+    background: linear-gradient(
+        180deg,
+        rgba(5, 0, 16, 0.6) 0%,
+        rgba(10, 1, 24, 0.5) 25%,
+        rgba(10, 1, 24, 0.5) 75%,
+        rgba(5, 0, 16, 0.6) 100%
+    );
+    backdrop-filter: blur(0.5px);
+    -webkit-backdrop-filter: blur(0.5px);
 }
 
 .screen { display: none; flex-direction: column; height: 100%; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
@@ -608,6 +620,15 @@ body {
     }
 }
 
+/* Mobile devices - optimize background */
+@media (max-width: 768px) {
+    .galaxy-bg {
+        background-attachment: scroll; /* Lepsze dla urządzeń mobilnych */
+        background-size: cover;
+        background-position: center center;
+    }
+}
+
 /* iPhone landscape and small height */
 @media (max-height: 500px) and (orientation: landscape) {
     .timer-area { padding: 8px; }
@@ -694,6 +715,9 @@ body {
 
 /* iPhone SE and very small screens */
 @media (max-width: 375px) {
+    .galaxy-bg {
+        background-attachment: scroll; /* Lepsze dla małych ekranów */
+    }
     .name-modal-content {
         padding: 18px;
     }
@@ -725,6 +749,19 @@ body {
 
 /* Large screens */
 @media (min-width: 1025px) {
+    .galaxy-bg {
+        filter: brightness(0.45) contrast(1.15); /* Nieco jaśniejsze na dużych ekranach */
+        -webkit-filter: brightness(0.45) contrast(1.15);
+    }
+    .bg-overlay {
+        background: linear-gradient(
+            180deg,
+            rgba(5, 0, 16, 0.5) 0%,
+            rgba(10, 1, 24, 0.4) 25%,
+            rgba(10, 1, 24, 0.4) 75%,
+            rgba(5, 0, 16, 0.5) 100%
+        );
+    }
     .name-modal-content {
         max-width: 450px;
     }
@@ -734,5 +771,14 @@ body {
     }
     .color-option:hover {
         transform: scale(1.15);
+    }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .galaxy-bg {
+        background-image: url('assets/background.png');
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
     }
 }
