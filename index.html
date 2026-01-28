@@ -147,7 +147,7 @@
             <button class="pass-btn" id="passBtn">PASS</button>
             <div class="secondary-actions">
                 <button class="action-btn pass-gen" id="passGenBtn"><div class="progress-fill"></div><span>Pass Gen</span></button>
-                <button class="action-btn admin-time host-only" id="adminTimeBtn">Admin Time</button>
+                <button class="action-btn admin-time" id="adminTimeBtn">Admin Time</button>
             </div>
         </div>
         <div class="admin-overlay" id="adminOverlay">
@@ -158,7 +158,7 @@
             </svg>
             <h2 id="overlayTitle">Admin Time</h2>
             <p id="overlayText">Gra wstrzymana</p>
-            <button class="resume-btn host-only" id="resumeBtn">Wznów grę</button>
+            <button class="resume-btn" id="resumeBtn">Wznów grę</button>
         </div>
     </div>
     
@@ -1222,7 +1222,6 @@
             // This prevents the listener from announcing the first player again
             state.lastAnnouncedTurnTime = turnStartTime;
             state.lastAnnouncedGeneration = 1;
-            state.gameStartAnnounced = true; // Set flag to prevent double announcement
             
             await update(ref(db, `rooms/${state.roomId}`), {
                 state: 'playing',
@@ -1242,6 +1241,9 @@
             playTurnStart();
             TTS.speak(firstPlayer.name);
             
+            // Set flag AFTER announcement to prevent double announcement
+            state.gameStartAnnounced = true;
+            
             // Clear flag after a short delay to allow normal turn announcements
             setTimeout(() => {
                 state.gameStartAnnounced = false;
@@ -1258,7 +1260,7 @@
             // Reset state
             state.warningPlayed = false;
             state.timeUpPlayed = false;
-            state.gameStartAnnounced = false; // Reset flag when starting game listener
+            // DON'T reset gameStartAnnounced here - it's set in startGame() and prevents double announcement
             
             const roomRef = ref(db, `rooms/${state.roomId}`);
             const unsubGame = onValue(roomRef, (snapshot) => {
@@ -1275,6 +1277,26 @@
                 
                 if (data.state === 'playing') {
                     updateGameUI(data);
+
+                    // =============================================
+                    // Host-only: detect Admin Time activation
+                    // Host should always announce "Admin time" regardless of who activated it
+                    // BUT NOT when it's end of generation (overlayTitle contains "Koniec pokolenia")
+                    // =============================================
+                    if (state.isHost && prevGameState && prevGameState.isPaused !== data.isPaused) {
+                        if (data.isPaused && !prevGameState.isPaused) {
+                            // Check if this is end of generation, not Admin Time
+                            const isEndOfGeneration = data.overlayTitle && data.overlayTitle.includes('Koniec pokolenia');
+                            
+                            if (!isEndOfGeneration) {
+                                // Admin Time was just activated - host announces
+                                console.log('[ADMIN TIME] Admin Time activated, host announcing');
+                                TTS.speak('Admin time');
+                            } else {
+                                console.log('[ADMIN TIME] Skipping announcement - end of generation, not Admin Time');
+                            }
+                        }
+                    }
 
                     // =============================================
                     // Host-only: detect Pass Gen changes from ANY player
@@ -1355,12 +1377,38 @@
                         // This prevents double announcement on iOS
                         const skipDueToGameStart = state.gameStartAnnounced && isFirstSnapshot && data.generation === 1 && data.currentPlayerIndex === 0;
                         
+                        // CRITICAL: If this is first snapshot of game start and first player hasn't been announced yet,
+                        // announce it here (fallback in case startGame() TTS didn't fire)
+                        const isGameStartFirstPlayer = isFirstSnapshot && data.generation === 1 && data.currentPlayerIndex === 0;
+                        const firstPlayerNotAnnounced = isGameStartFirstPlayer && state.lastAnnouncedTurnTime !== data.turnStartTime;
+                        
                         console.log('[TURN CHECK] turnStartTime:', data.turnStartTime, 
                                     'lastAnnounced:', state.lastAnnouncedTurnTime,
                                     'changed:', turnTimeChanged,
                                     'alreadyAnnounced:', alreadyAnnounced,
                                     'isFirstSnapshot:', isFirstSnapshot,
-                                    'skipDueToGameStart:', skipDueToGameStart);
+                                    'skipDueToGameStart:', skipDueToGameStart,
+                                    'firstPlayerNotAnnounced:', firstPlayerNotAnnounced);
+                        
+                        // Announce first player if not yet announced (fallback)
+                        if (firstPlayerNotAnnounced && state.isHost) {
+                            const playerOrder = data.playerOrder || [];
+                            const currentPlayerId = playerOrder[data.currentPlayerIndex];
+                            const currentPlayer = data.players?.[currentPlayerId];
+                            if (currentPlayer) {
+                                console.log('[TURN] First player not announced yet, announcing now:', currentPlayer.name);
+                                playTurnStart();
+                                TTS.speak(currentPlayer.name);
+                                state.lastAnnouncedTurnTime = data.turnStartTime;
+                                state.lastAnnouncedGeneration = data.generation;
+                                state.gameStartAnnounced = true;
+                                // Clear flag after delay
+                                setTimeout(() => {
+                                    state.gameStartAnnounced = false;
+                                }, 2000);
+                                return; // Don't continue with normal turn check
+                            }
+                        }
                         
                         // Only announce if turn changed AND we haven't already announced this exact time
                         // AND we're not skipping due to game start announcement
@@ -1496,6 +1544,11 @@
                 el.passBtn.disabled = !isMyTurn || data.isPaused;
                 el.passGenBtn.disabled = !isMyTurn || data.isPaused;
                 
+                // Admin Time button: enabled during player's turn (to pause) or if host (to resume)
+                const pausedBy = data.pausedBy;
+                const canUseAdminTime = isMyTurn || state.isHost || (data.isPaused && pausedBy === state.playerId);
+                el.adminTimeBtn.disabled = !canUseAdminTime;
+                
                 const timerGradient = document.querySelector('#timerGradient');
                 if (timerGradient) {
                     timerGradient.innerHTML = `<stop offset="0%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/><stop offset="100%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/>`;
@@ -1534,6 +1587,11 @@
                 el.overlayTitle.textContent = data.overlayTitle || 'Admin Time';
                 el.overlayText.textContent = data.overlayText || 'Gra wstrzymana';
                 el.resumeBtn.textContent = data.overlayButton || 'Wznów grę';
+                
+                // Show resume button only for host or player who paused
+                const pausedBy = data.pausedBy;
+                const canResume = state.isHost || (pausedBy === state.playerId);
+                el.resumeBtn.style.display = canResume ? 'inline-block' : 'none';
             } else {
                 el.adminOverlay.classList.remove('active');
             }
@@ -1641,23 +1699,43 @@
         
         // ADMIN TIME
         async function toggleAdminTime() {
-            if (!state.isHost || !state.gameState) return;
+            if (!state.gameState) return;
             
+            // Check if it's player's turn (for pausing) or if they're host (for resuming)
+            const playerOrder = state.gameState.playerOrder || [];
+            const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
+            const isMyTurn = currentPlayerId === state.playerId;
             const isPaused = !state.gameState.isPaused;
             
+            // Only allow pausing during player's turn, or resuming if host
             if (isPaused) {
-                // Pausing
-                TTS.speak('Admin time');
+                // Pausing - only during player's turn
+                if (!isMyTurn) {
+                    console.log('[ADMIN TIME] Cannot pause - not your turn');
+                    return;
+                }
+                
+                // Note: Host will announce "Admin time" via Firebase listener
+                // No need to announce here - listener will detect the change
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
                     isPaused: true,
                     pausedAt: Date.now(),
                     overlayTitle: 'Admin Time',
                     overlayText: 'Gra wstrzymana',
-                    overlayButton: 'Wznów grę'
+                    overlayButton: 'Wznów grę',
+                    pausedBy: state.playerId // Track who paused
                 });
             } else {
-                // Resuming
+                // Resuming - only host or the player who paused can resume
+                const pausedBy = state.gameState.pausedBy;
+                const canResume = state.isHost || (pausedBy === state.playerId);
+                
+                if (!canResume) {
+                    console.log('[ADMIN TIME] Cannot resume - only host or player who paused can resume');
+                    return;
+                }
+                
                 const pauseDuration = Date.now() - (state.gameState.pausedAt || Date.now());
                 const newTurnTime = state.gameState.turnStartTime + pauseDuration;
                 
@@ -1666,7 +1744,8 @@
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
                     isPaused: false,
-                    turnStartTime: newTurnTime
+                    turnStartTime: newTurnTime,
+                    pausedBy: null // Clear pausedBy when resuming
                 });
             }
         }
