@@ -195,6 +195,7 @@
         const COLORS = ['blue', 'red', 'green', 'yellow', 'black'];
         const COLOR_HEX = { red: '#f43f5e', blue: '#3b82f6', green: '#22c55e', yellow: '#facc15', black: '#6b7280' };
         
+        // Polish ordinal numbers for generation announcement
         const POLISH_ORDINALS = {
             1: 'pierwsze', 2: 'drugie', 3: 'trzecie', 4: 'czwarte', 5: 'piąte',
             6: 'szóste', 7: 'siódme', 8: 'ósme', 9: 'dziewiąte', 10: 'dziesiąte',
@@ -220,6 +221,7 @@
             audioContext: null,
             holdTimeout: null,
             holdProgress: 0,
+            // KLUCZOWE: używamy turnStartTime jako unikalnego markera tury
             lastAnnouncedTurnTime: 0,
             lastAnnouncedGeneration: 0,
             warningPlayed: false,
@@ -229,103 +231,117 @@
         let unsubscribers = [];
         
         // =============================================
-        // TTS MODULE - NAPRAWIONY DLA ANDROID + iOS
+        // TTS (TEXT-TO-SPEECH) MODULE - NAPRAWIONY
         // =============================================
         const TTS = {
             isUnlocked: false,
-            platform: 'desktop',
-            speakQueue: [],
-            isSpeaking: false,
-            retryCount: 0,
-            maxRetries: 3,
+            voicesLoaded: false,
+            polishVoice: null,
+            unlockAttempts: 0,
             
             // Detect platform
-            detectPlatform() {
-                const ua = navigator.userAgent.toLowerCase();
-                if (/iphone|ipad|ipod/.test(ua)) {
-                    this.platform = 'ios';
-                } else if (/android/.test(ua)) {
-                    this.platform = 'android';
-                } else {
-                    this.platform = 'desktop';
-                }
-                console.log('[TTS] Platform detected:', this.platform);
-                return this.platform;
+            getPlatform() {
+                const ua = navigator.userAgent;
+                if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return 'ios';
+                if (/Android/.test(ua)) return 'android';
+                return 'desktop';
             },
             
-            // Initialize
+            // Initialize - call early
             init() {
                 if (!('speechSynthesis' in window)) {
-                    console.warn('[TTS] Speech Synthesis NOT supported');
+                    console.warn('[TTS] Speech Synthesis NOT supported in this browser');
                     return false;
                 }
                 
-                this.detectPlatform();
-                console.log('[TTS] Initializing for platform:', this.platform);
+                console.log('[TTS] Initializing... Platform:', this.getPlatform());
                 
-                // Preload voices
+                // Load voices immediately
                 this.loadVoices();
                 
-                // Voice changed event
-                if (speechSynthesis.onvoiceschanged !== undefined) {
-                    speechSynthesis.onvoiceschanged = () => {
-                        console.log('[TTS] Voices changed event');
-                        this.loadVoices();
-                    };
-                }
+                // iOS/Safari: voices load asynchronously
+                speechSynthesis.onvoiceschanged = () => {
+                    console.log('[TTS] onvoiceschanged fired');
+                    this.loadVoices();
+                };
                 
-                // Periodic voice loading for Android
-                if (this.platform === 'android') {
-                    setTimeout(() => this.loadVoices(), 500);
-                    setTimeout(() => this.loadVoices(), 1000);
-                    setTimeout(() => this.loadVoices(), 2000);
-                }
+                // Periodic voice check for stubborn browsers
+                setTimeout(() => this.loadVoices(), 100);
+                setTimeout(() => this.loadVoices(), 500);
+                setTimeout(() => this.loadVoices(), 1000);
                 
                 return true;
             },
             
-            // Load voices (for logging only - we won't use them on Android)
+            // Load and find Polish voice
             loadVoices() {
                 const voices = speechSynthesis.getVoices();
-                console.log('[TTS] Voices available:', voices.length);
+                console.log('[TTS] Available voices:', voices.length);
                 
-                if (voices.length > 0) {
-                    const plVoices = voices.filter(v => v.lang && v.lang.startsWith('pl'));
-                    console.log('[TTS] Polish voices:', plVoices.map(v => `${v.name} (${v.lang})`));
+                if (voices.length === 0) {
+                    console.log('[TTS] No voices yet, waiting...');
+                    return;
+                }
+                
+                this.voicesLoaded = true;
+                
+                // Find Polish voice
+                const plVoices = voices.filter(v => v.lang && v.lang.startsWith('pl'));
+                console.log('[TTS] Polish voices found:', plVoices.length, plVoices.map(v => v.name));
+                
+                if (plVoices.length > 0) {
+                    // Prefer certain voices
+                    this.polishVoice = plVoices.find(v => 
+                        v.name.includes('Google') || 
+                        v.name.includes('Zosia') ||
+                        v.name.includes('Paulina') ||
+                        v.name.includes('Microsoft')
+                    ) || plVoices[0];
+                    
+                    console.log('[TTS] Selected Polish voice:', this.polishVoice.name);
+                } else {
+                    console.log('[TTS] No Polish voice found - will use lang fallback');
+                    this.polishVoice = null;
                 }
             },
             
-            // Unlock TTS - MUST be called from user gesture
+            // CRITICAL: Unlock TTS - must be called from user gesture!
             async unlock() {
                 if (this.isUnlocked) {
                     console.log('[TTS] Already unlocked');
                     return true;
                 }
                 
-                console.log('[TTS] Attempting unlock on', this.platform);
+                console.log('[TTS] Attempting unlock... (attempt #' + (++this.unlockAttempts) + ')');
                 
-                return new Promise((resolve) => {
-                    try {
-                        // Cancel any pending
-                        speechSynthesis.cancel();
-                        
-                        // Create silent utterance
-                        const utterance = new SpeechSynthesisUtterance('');
-                        utterance.volume = 0.01;
-                        utterance.rate = 10;
-                        utterance.lang = 'pl-PL';
-                        // CRITICAL: Don't set voice - let system choose
-                        utterance.voice = null;
-                        
+                const platform = this.getPlatform();
+                
+                try {
+                    // Cancel any pending speech
+                    speechSynthesis.cancel();
+                    
+                    // Method 1: Silent utterance (works on most platforms)
+                    const utterance = new SpeechSynthesisUtterance(' ');
+                    utterance.volume = 0.01; // Nearly silent
+                    utterance.rate = 10; // Fast
+                    utterance.lang = 'pl-PL';
+                    
+                    // Don't set voice on iOS - let it use default
+                    if (platform !== 'ios' && this.polishVoice) {
+                        utterance.voice = this.polishVoice;
+                    }
+                    
+                    return new Promise((resolve) => {
                         utterance.onend = () => {
                             this.isUnlocked = true;
-                            console.log('[TTS] ✓ Unlocked via onend');
+                            console.log('[TTS] Unlock SUCCESS via onend');
                             resolve(true);
                         };
                         
                         utterance.onerror = (e) => {
-                            console.log('[TTS] Unlock error (OK):', e.error);
-                            this.isUnlocked = true;
+                            // Some errors are OK (interrupted, etc)
+                            console.log('[TTS] Unlock utterance error:', e.error);
+                            this.isUnlocked = true; // Try anyway
                             resolve(true);
                         };
                         
@@ -334,164 +350,118 @@
                         // Timeout fallback
                         setTimeout(() => {
                             this.isUnlocked = true;
-                            console.log('[TTS] ✓ Unlocked via timeout');
+                            console.log('[TTS] Unlock via timeout fallback');
                             resolve(true);
-                        }, 500);
-                        
-                    } catch (e) {
-                        console.error('[TTS] Unlock exception:', e);
-                        this.isUnlocked = true;
-                        resolve(true);
-                    }
-                });
+                        }, 300);
+                    });
+                } catch (e) {
+                    console.error('[TTS] Unlock error:', e);
+                    this.isUnlocked = true; // Try anyway
+                    return true;
+                }
             },
             
-            // Main speak function - ANDROID FIX
+            // Main speak function
             speak(text) {
+                // Guards
                 if (!state.isHost) {
-                    console.log('[TTS] Not host, skip:', text);
+                    console.log('[TTS] Not host, skipping:', text);
                     return;
                 }
                 
                 if (state.isMuted) {
-                    console.log('[TTS] Muted, skip:', text);
+                    console.log('[TTS] Muted, skipping:', text);
                     return;
                 }
                 
                 if (!('speechSynthesis' in window)) {
-                    console.log('[TTS] No support');
+                    console.log('[TTS] No speechSynthesis support');
                     return;
                 }
                 
-                console.log('[TTS] ▶▶▶ SPEAK:', text, '| Platform:', this.platform, '| Unlocked:', this.isUnlocked);
+                console.log('[TTS] ▶ SPEAKING:', text, '| Unlocked:', this.isUnlocked, '| Voice:', this.polishVoice?.name || 'default');
                 
-                // Add to queue
-                this.speakQueue.push(text);
+                const platform = this.getPlatform();
                 
-                // Process queue
-                if (!this.isSpeaking) {
-                    this.processQueue();
-                }
-            },
-            
-            // Process speech queue
-            processQueue() {
-                if (this.speakQueue.length === 0) {
-                    this.isSpeaking = false;
-                    return;
-                }
-                
-                this.isSpeaking = true;
-                const text = this.speakQueue.shift();
-                
-                this.doSpeak(text);
-            },
-            
-            // Actual speech execution
-            doSpeak(text) {
-                console.log('[TTS] doSpeak:', text);
-                
-                // CRITICAL: Always cancel first
+                // ALWAYS cancel before new speech (critical for iOS!)
                 speechSynthesis.cancel();
                 
-                // Delay after cancel - LONGER for Android
-                const delay = this.platform === 'android' ? 250 : 
-                              this.platform === 'ios' ? 100 : 50;
-                
+                // Small delay after cancel (helps iOS)
                 setTimeout(() => {
                     try {
-                        // Check if speechSynthesis is stuck (Android issue)
-                        if (speechSynthesis.speaking || speechSynthesis.pending) {
-                            console.log('[TTS] SpeechSynthesis busy, forcing cancel');
-                            speechSynthesis.cancel();
-                        }
-                        
                         const utterance = new SpeechSynthesisUtterance(text);
-                        
-                        // =============================================
-                        // ANDROID FIX: NEVER set voice object!
-                        // Just set lang and let system handle it
-                        // =============================================
-                        utterance.voice = null;  // CRITICAL for Android
                         utterance.lang = 'pl-PL';
                         utterance.rate = 1.0;
-                        utterance.pitch = 1.0;
+                        utterance.pitch = 0.95;
                         utterance.volume = 1.0;
                         
-                        console.log('[TTS] Utterance created:', {
-                            text: text,
-                            lang: utterance.lang,
-                            voice: utterance.voice,
-                            platform: this.platform
-                        });
+                        // Voice selection strategy by platform
+                        if (platform === 'ios') {
+                            // iOS: DON'T set voice object - just use lang
+                            // Setting specific voice on iOS often breaks TTS
+                            console.log('[TTS] iOS mode - using lang only');
+                        } else if (platform === 'android') {
+                            // Android: Try Polish voice, fallback to lang
+                            if (this.polishVoice) {
+                                utterance.voice = this.polishVoice;
+                            }
+                            console.log('[TTS] Android mode - voice:', utterance.voice?.name || 'default');
+                        } else {
+                            // Desktop: Use best voice if available
+                            if (this.polishVoice) {
+                                utterance.voice = this.polishVoice;
+                            }
+                            console.log('[TTS] Desktop mode - voice:', utterance.voice?.name || 'default');
+                        }
                         
                         utterance.onstart = () => {
-                            console.log('[TTS] ✓ Started:', text);
-                            this.retryCount = 0;
+                            console.log('[TTS] ✓ Speech started:', text);
                         };
                         
                         utterance.onend = () => {
-                            console.log('[TTS] ✓ Ended:', text);
-                            this.isSpeaking = false;
-                            this.retryCount = 0;
-                            // Process next in queue
-                            setTimeout(() => this.processQueue(), 100);
+                            console.log('[TTS] ✓ Speech ended:', text);
                         };
                         
                         utterance.onerror = (e) => {
-                            console.error('[TTS] ✗ Error:', e.error, 'for:', text);
+                            console.error('[TTS] ✗ Speech error:', e.error, 'for text:', text);
                             
-                            // Retry logic for Android
+                            // Retry once on error (except 'interrupted' which is normal)
                             if (e.error !== 'interrupted' && e.error !== 'canceled') {
-                                if (this.retryCount < this.maxRetries) {
-                                    this.retryCount++;
-                                    console.log('[TTS] Retry #' + this.retryCount);
-                                    setTimeout(() => this.doSpeak(text), 300);
-                                    return;
-                                }
+                                console.log('[TTS] Retrying speech...');
+                                setTimeout(() => {
+                                    const retry = new SpeechSynthesisUtterance(text);
+                                    retry.lang = 'pl-PL';
+                                    retry.rate = 1.0;
+                                    speechSynthesis.speak(retry);
+                                }, 100);
                             }
-                            
-                            this.isSpeaking = false;
-                            this.retryCount = 0;
-                            setTimeout(() => this.processQueue(), 100);
                         };
                         
-                        // Resume if paused (Chrome desktop bug)
+                        // Chrome bug workaround: resume if paused
                         if (speechSynthesis.paused) {
-                            console.log('[TTS] Resuming paused synthesis');
                             speechSynthesis.resume();
                         }
                         
-                        // Speak!
                         speechSynthesis.speak(utterance);
                         
-                        // Android workaround: Check if actually started
-                        if (this.platform === 'android') {
+                        // Chrome bug: speech can stop after ~15s, this helps
+                        if (platform === 'desktop') {
                             setTimeout(() => {
-                                if (!speechSynthesis.speaking && !speechSynthesis.pending) {
-                                    console.log('[TTS] Android: Speech didn\'t start, retrying...');
-                                    if (this.retryCount < this.maxRetries) {
-                                        this.retryCount++;
-                                        this.doSpeak(text);
-                                    }
+                                if (speechSynthesis.speaking && speechSynthesis.paused) {
+                                    speechSynthesis.resume();
                                 }
-                            }, 500);
+                            }, 5000);
                         }
                         
                     } catch (e) {
-                        console.error('[TTS] Exception:', e);
-                        this.isSpeaking = false;
-                        setTimeout(() => this.processQueue(), 100);
+                        console.error('[TTS] Speak exception:', e);
                     }
-                }, delay);
+                }, platform === 'ios' ? 100 : 50); // Longer delay for iOS
             },
             
             // Stop all speech
             stop() {
-                console.log('[TTS] Stopping all');
-                this.speakQueue = [];
-                this.isSpeaking = false;
-                this.retryCount = 0;
+                console.log('[TTS] Stopping all speech');
                 speechSynthesis.cancel();
             }
         };
@@ -586,42 +556,49 @@
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
         
+        // Get Polish ordinal for generation number
         function getPolishOrdinal(num) {
             if (POLISH_ORDINALS[num]) return POLISH_ORDINALS[num];
             return num.toString();
         }
         
         // =============================================
-        // AUDIO - SOUND EFFECTS
+        // AUDIO (HOST ONLY!) - SOUND EFFECTS
         // =============================================
         async function initAudio() {
-            console.log('[AUDIO] Initializing...');
+            console.log('[AUDIO] Initializing audio system...');
             
-            // AudioContext
+            // Initialize AudioContext
             if (!state.audioContext) {
                 try {
                     state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    console.log('[AUDIO] AudioContext created');
+                    console.log('[AUDIO] AudioContext created, state:', state.audioContext.state);
                 } catch (e) {
-                    console.error('[AUDIO] AudioContext failed:', e);
+                    console.error('[AUDIO] Failed to create AudioContext:', e);
                 }
             }
             
-            if (state.audioContext?.state === 'suspended') {
-                await state.audioContext.resume();
-                console.log('[AUDIO] AudioContext resumed');
+            // Resume AudioContext if suspended
+            if (state.audioContext && state.audioContext.state === 'suspended') {
+                try {
+                    await state.audioContext.resume();
+                    console.log('[AUDIO] AudioContext resumed, state:', state.audioContext.state);
+                } catch (e) {
+                    console.error('[AUDIO] Failed to resume AudioContext:', e);
+                }
             }
             
-            // TTS unlock
+            // CRITICAL: Unlock TTS
             await TTS.unlock();
             
-            console.log('[AUDIO] Init complete');
+            console.log('[AUDIO] Audio initialization complete');
         }
         
         function playBeep(freq = 800, dur = 150, type = 'sine', volume = 0.3) {
             if (!state.isHost || !state.audioContext || state.isMuted) return;
             
             try {
+                // Resume context if suspended
                 if (state.audioContext.state === 'suspended') {
                     state.audioContext.resume();
                 }
@@ -641,50 +618,67 @@
             }
         }
         
+        // Sound: Turn start (when switching to new player)
         function playTurnStart() {
+            console.log('[AUDIO] Playing turn start sound');
             playBeep(600, 100);
             setTimeout(() => playBeep(800, 150), 120);
         }
         
+        // Sound: 5-second warning
         function playWarning() {
+            console.log('[AUDIO] Playing 5s warning');
             playBeep(880, 150, 'sine', 0.4);
         }
         
+        // Sound: Time's up
         function playTimeUp() {
+            console.log('[AUDIO] Playing time up sound');
             playBeep(300, 300, 'sawtooth', 0.5);
             setTimeout(() => playBeep(250, 400, 'sawtooth', 0.5), 350);
         }
         
         // =============================================
-        // WAKE LOCK
+        // WAKE LOCK API
         // =============================================
         let wakeLock = null;
         
         async function requestWakeLock() {
             if (!('wakeLock' in navigator)) return;
             
-            try {
-                if (wakeLock) {
+            if (wakeLock !== null) {
+                try {
                     await wakeLock.release();
-                }
+                    wakeLock = null;
+                } catch (e) {}
+            }
+            
+            try {
                 wakeLock = await navigator.wakeLock.request('screen');
-                console.log('[WAKE] Lock acquired');
+                console.log('[WAKE] Wake Lock acquired');
+                
+                wakeLock.addEventListener('release', () => {
+                    console.log('[WAKE] Wake Lock released');
+                    wakeLock = null;
+                });
             } catch (err) {
-                console.log('[WAKE] Error:', err.message);
+                console.log('[WAKE] Wake Lock error:', err.name, err.message);
             }
         }
         
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible') {
+                console.log('[VISIBILITY] Page visible again');
                 await requestWakeLock();
-                if (state.audioContext?.state === 'suspended') {
+                
+                if (state.audioContext && state.audioContext.state === 'suspended') {
                     state.audioContext.resume();
                 }
             }
         });
         
         // =============================================
-        // SESSION STORAGE
+        // LOCAL STORAGE (Auto-Reconnect)
         // =============================================
         function saveSession() {
             localStorage.setItem('marsTimer_session', JSON.stringify({
@@ -699,10 +693,9 @@
         function loadSession() {
             try {
                 const saved = localStorage.getItem('marsTimer_session');
-                return saved ? JSON.parse(saved) : null;
-            } catch(e) {
-                return null;
-            }
+                if (saved) return JSON.parse(saved);
+            } catch(e) {}
+            return null;
         }
         
         function clearSession() {
@@ -726,6 +719,7 @@
         // FIREBASE: ROOM MANAGEMENT
         // =============================================
         async function createRoom() {
+            // CRITICAL: Initialize audio on user gesture
             await initAudio();
             
             const roomCode = generateRoomCode();
@@ -733,7 +727,8 @@
             state.playerId = generatePlayerId();
             state.isHost = true;
             
-            await set(ref(db, `rooms/${roomCode}`), {
+            const roomRef = ref(db, `rooms/${roomCode}`);
+            await set(roomRef, {
                 host: state.playerId,
                 state: 'waiting',
                 turnDuration: state.turnDuration,
@@ -744,10 +739,12 @@
         }
         
         async function joinRoom(code) {
+            // Initialize audio on user gesture (for future host promotion)
             await initAudio();
             
             const roomCode = code.toUpperCase();
-            const snapshot = await get(ref(db, `rooms/${roomCode}`));
+            const roomRef = ref(db, `rooms/${roomCode}`);
+            const snapshot = await get(roomRef);
             
             if (!snapshot.exists()) {
                 alert('Nie znaleziono pokoju o tym kodzie!');
@@ -781,6 +778,7 @@
                 return;
             }
             
+            // Re-unlock audio on this user gesture
             await initAudio();
             
             state.playerName = name;
@@ -876,12 +874,10 @@
             await update(ref(db, `rooms/${state.roomId}`), { turnDuration: state.turnDuration });
         }
         
-        // =============================================
-        // START GAME - OGŁOSZENIE PIERWSZEGO GRACZA
-        // =============================================
         async function startGame() {
             if (!state.isHost) return;
             
+            // Re-init audio
             await initAudio();
             
             const players = Object.entries(state.players)
@@ -903,14 +899,13 @@
                 gameStartTime: Date.now()
             });
             
-            // Mark as announced
+            // Mark this turn as announced
             state.lastAnnouncedTurnTime = turnStartTime;
             state.lastAnnouncedGeneration = 1;
             
-            // ANNOUNCE FIRST PLAYER IMMEDIATELY
+            // Announce first player
             const firstPlayer = players[0][1];
-            console.log('[GAME] ▶▶▶ Starting game! First player:', firstPlayer.name);
-            
+            console.log('[GAME] Starting game, first player:', firstPlayer.name);
             playTurnStart();
             TTS.speak(firstPlayer.name);
         }
@@ -922,6 +917,7 @@
             if (state.localTimerInterval) clearInterval(state.localTimerInterval);
             if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
             
+            // Reset state
             state.warningPlayed = false;
             state.timeUpPlayed = false;
             
@@ -933,35 +929,53 @@
                 }
                 
                 const data = snapshot.val();
+                const prevGameState = state.gameState;
+                
                 state.gameState = data;
                 state.players = data.players || {};
                 
                 if (data.state === 'playing') {
                     updateGameUI(data);
                     
-                    // Turn change detection via turnStartTime
+                    // =============================================
+                    // KLUCZOWA LOGIKA: Wykrywanie zmiany tury przez turnStartTime
+                    // To działa nawet gdy index wraca do 0!
+                    // =============================================
                     if (state.isHost && data.turnStartTime && !data.isPaused) {
-                        if (data.turnStartTime !== state.lastAnnouncedTurnTime) {
+                        const turnTimeChanged = data.turnStartTime !== state.lastAnnouncedTurnTime;
+                        const generationChanged = data.generation !== state.lastAnnouncedGeneration;
+                        
+                        console.log('[TURN CHECK] turnStartTime:', data.turnStartTime, 
+                                    'lastAnnounced:', state.lastAnnouncedTurnTime,
+                                    'changed:', turnTimeChanged);
+                        
+                        if (turnTimeChanged) {
+                            // Nowa tura! Ogłoś gracza
                             const playerOrder = data.playerOrder || [];
                             const currentPlayerId = playerOrder[data.currentPlayerIndex];
                             const currentPlayer = data.players?.[currentPlayerId];
                             
                             if (currentPlayer) {
-                                console.log('[TURN] ▶▶▶ New turn! Player:', currentPlayer.name);
+                                console.log('[TURN] New turn detected! Player:', currentPlayer.name, 
+                                           'Index:', data.currentPlayerIndex);
                                 
+                                // Reset warning flags for new turn
                                 state.warningPlayed = false;
                                 state.timeUpPlayed = false;
                                 
+                                // Announce player (with small delay to not overlap with other sounds)
                                 setTimeout(() => {
                                     playTurnStart();
                                     TTS.speak(currentPlayer.name);
-                                }, 150);
+                                }, 100);
                             }
                             
+                            // Mark as announced
                             state.lastAnnouncedTurnTime = data.turnStartTime;
                         }
                         
-                        if (data.generation !== state.lastAnnouncedGeneration) {
+                        // Track generation changes separately
+                        if (generationChanged) {
                             state.lastAnnouncedGeneration = data.generation;
                         }
                     }
@@ -976,17 +990,21 @@
             state.localTimerInterval = setInterval(() => {
                 if (!state.gameState || state.gameState.isPaused) return;
                 
-                const elapsed = (Date.now() - state.gameState.turnStartTime) / 1000;
+                const now = Date.now();
+                const elapsed = (now - state.gameState.turnStartTime) / 1000;
                 const remaining = state.gameState.turnDuration - elapsed;
                 
                 updateTimerDisplay(remaining);
                 
+                // Warning sounds (host only)
                 if (state.isHost && !state.isMuted) {
+                    // 5 second warning
                     if (remaining <= 5.1 && remaining > 4.5 && !state.warningPlayed) {
                         playWarning();
                         state.warningPlayed = true;
                     }
                     
+                    // Time up
                     if (remaining <= 0.1 && remaining > -0.5 && !state.timeUpPlayed) {
                         playTimeUp();
                         state.timeUpPlayed = true;
@@ -996,7 +1014,7 @@
             
             // Game timer
             state.gameTimerInterval = setInterval(() => {
-                if (!state.gameState?.gameStartTime) return;
+                if (!state.gameState || !state.gameState.gameStartTime) return;
                 const elapsed = Math.floor((Date.now() - state.gameState.gameStartTime) / 1000);
                 el.gameTimer.textContent = formatGameTime(elapsed);
             }, 1000);
@@ -1073,8 +1091,10 @@
                 el.adminOverlay.classList.remove('active');
             }
             
+            // Next gen button
             const allPassed = playerOrder.every(pid => data.players?.[pid]?.passedGen);
             el.nextGenBtn.style.display = allPassed && state.isHost ? 'block' : 'none';
+            
             el.adminTimeBtn.classList.toggle('active', data.isPaused);
         }
         
@@ -1091,6 +1111,7 @@
             
             if (currentPlayerId !== state.playerId) return;
             
+            // Find next active player
             let nextIndex = state.gameState.currentPlayerIndex;
             let attempts = 0;
             do {
@@ -1098,17 +1119,21 @@
                 attempts++;
             } while (state.players[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
             
+            // WAŻNE: Użyj NOWEGO turnStartTime jako unikalnego markera!
             const newTurnTime = Date.now();
             
-            console.log('[PASS] From', state.gameState.currentPlayerIndex, 'to', nextIndex);
+            console.log('[PASS] Passing turn. Current:', state.gameState.currentPlayerIndex, 
+                       '-> Next:', nextIndex, 'NewTurnTime:', newTurnTime);
             
+            // Update state - NIE ogłaszamy tutaj, ogłoszenie będzie przez Firebase listener
+            // To zapewnia że ogłoszenie działa nawet gdy inny gracz klika PASS
             await update(ref(db, `rooms/${state.roomId}`), {
                 currentPlayerIndex: nextIndex,
                 turnStartTime: newTurnTime
             });
         }
         
-        // PASS GEN - z prawidłową logiką komunikatów
+        // PASS GEN
         async function passGen() {
             if (!state.gameState) return;
             
@@ -1117,44 +1142,36 @@
             
             if (currentPlayerId !== state.playerId) return;
             
-            // Mark as passed
+            // Mark current player as passed
             await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), {
                 passedGen: true
             });
             
-            // Count active players AFTER this pass
+            // Check remaining active players
             const updatedPlayers = { ...state.players };
             updatedPlayers[state.playerId].passedGen = true;
             
-            const activePlayersRemaining = playerOrder.filter(pid => !updatedPlayers[pid]?.passedGen);
-            const isLastPlayer = activePlayersRemaining.length === 0;
+            const activePlayers = playerOrder.filter(pid => !updatedPlayers[pid]?.passedGen);
+            const allPassed = activePlayers.length === 0;
             
-            console.log('[PASS GEN] Player:', state.playerName, '| Active remaining:', activePlayersRemaining.length, '| IsLast:', isLastPlayer);
+            console.log('[PASS GEN] Player:', state.playerName, 'Active remaining:', activePlayers.length);
             
-            if (isLastPlayer) {
-                // =============================================
-                // SCENARIO 2: OSTATNI GRACZ - "Koniec pokolenia X"
-                // =============================================
-                const genNum = state.gameState.generation;
-                const ordinal = getPolishOrdinal(genNum);
-                
-                console.log('[PASS GEN] ▶▶▶ Last player! Announcing: Koniec pokolenia', ordinal);
-                
+            if (allPassed) {
+                // SCENARIO B: Last player - end generation
                 if (state.isHost) {
+                    const genNum = state.gameState.generation;
+                    const ordinal = getPolishOrdinal(genNum);
                     TTS.speak(`Koniec pokolenia ${ordinal}`);
                 }
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
                     isPaused: true,
-                    overlayTitle: 'Koniec pokolenia ' + genNum,
+                    overlayTitle: 'Koniec pokolenia ' + state.gameState.generation,
                     overlayText: 'Wszyscy spasowali',
                     overlayButton: '🚀 Następne Pokolenie'
                 });
-                
             } else {
-                // =============================================
-                // SCENARIO 1: SĄ JESZCZE INNI GRACZE - "{Imię} spasował"
-                // =============================================
+                // SCENARIO A: Others still active
                 let nextIndex = state.gameState.currentPlayerIndex;
                 let attempts = 0;
                 do {
@@ -1163,16 +1180,15 @@
                 } while (updatedPlayers[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
                 
                 const nextPlayer = state.players[playerOrder[nextIndex]];
-                
-                console.log('[PASS GEN] ▶▶▶ Not last! Announcing:', state.playerName, 'spasował, next:', nextPlayer?.name);
+                const newTurnTime = Date.now() + 1800; // Delay for speech
                 
                 if (state.isHost) {
+                    // Announce who passed
                     TTS.speak(`${state.playerName} spasował`);
+                    
+                    // Mark turn time so the listener will announce next player
+                    state.lastAnnouncedTurnTime = newTurnTime;
                 }
-                
-                // Delay turn change for speech
-                const newTurnTime = Date.now() + 2000;
-                state.lastAnnouncedTurnTime = newTurnTime;
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
                     currentPlayerIndex: nextIndex,
@@ -1192,13 +1208,14 @@
             const firstPlayerId = playerOrder[newStartIndex];
             const firstPlayer = state.players[firstPlayerId];
             
+            // Announce generation FIRST
             const ordinal = getPolishOrdinal(newGeneration);
-            
-            console.log('[NEXT GEN] ▶▶▶ Generation:', newGeneration, '| First player:', firstPlayer?.name);
-            
             TTS.speak(`Pokolenie ${ordinal}`);
             
+            // Set turn time in future for delay
             const newTurnTime = Date.now() + 2500;
+            
+            // Mark as announced so listener doesn't double-announce
             state.lastAnnouncedTurnTime = newTurnTime;
             state.lastAnnouncedGeneration = newGeneration;
             
@@ -1216,6 +1233,7 @@
             
             await update(ref(db, `rooms/${state.roomId}`), updates);
             
+            // Announce first player after delay
             setTimeout(() => {
                 playTurnStart();
                 TTS.speak(firstPlayer?.name);
@@ -1229,7 +1247,7 @@
             const isPaused = !state.gameState.isPaused;
             
             if (isPaused) {
-                console.log('[ADMIN] ▶▶▶ Pausing - Admin time');
+                // Pausing
                 TTS.speak('Admin time');
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
@@ -1240,10 +1258,11 @@
                     overlayButton: 'Wznów grę'
                 });
             } else {
-                console.log('[ADMIN] Resuming');
+                // Resuming
                 const pauseDuration = Date.now() - (state.gameState.pausedAt || Date.now());
                 const newTurnTime = state.gameState.turnStartTime + pauseDuration;
                 
+                // Mark as announced so we don't re-announce current player
                 state.lastAnnouncedTurnTime = newTurnTime;
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
@@ -1266,11 +1285,17 @@
                 attempts++;
             } while (state.players[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
             
-            console.log('[FORCE] Next turn to index:', nextIndex);
+            const newTurnTime = Date.now();
+            
+            console.log('[FORCE NEXT] Forcing next turn. Current:', state.gameState.currentPlayerIndex, 
+                       '-> Next:', nextIndex);
+            
+            // Mark as announced so we announce via listener
+            // Actually no - let the listener handle it for consistency
             
             await update(ref(db, `rooms/${state.roomId}`), {
                 currentPlayerIndex: nextIndex,
-                turnStartTime: Date.now()
+                turnStartTime: newTurnTime
             });
         }
         
@@ -1351,7 +1376,8 @@
         });
         
         el.joinRoomBtn.addEventListener('click', () => {
-            if (el.joinCodeInput.value.length === 4) joinRoom(el.joinCodeInput.value);
+            const code = el.joinCodeInput.value;
+            if (code.length === 4) joinRoom(code);
         });
         
         el.joinCodeInput.addEventListener('keydown', (e) => {
@@ -1433,7 +1459,9 @@
         el.muteBtn.addEventListener('click', () => {
             state.isMuted = !state.isMuted;
             el.muteBtn.textContent = state.isMuted ? '🔇 Włącz dźwięki' : '🔊 Wycisz dźwięki';
-            if (state.isMuted) TTS.stop();
+            if (state.isMuted) {
+                TTS.stop();
+            }
         });
         
         el.leaveGameBtn.addEventListener('click', () => {
@@ -1459,8 +1487,11 @@
             console.log('[INIT] Mars Timer starting...');
             
             requestWakeLock();
+            
+            // Initialize TTS early (but unlock needs user gesture)
             TTS.init();
             
+            // Check URL for room code
             const urlParams = new URLSearchParams(window.location.search);
             const roomCode = urlParams.get('room');
             
@@ -1469,10 +1500,12 @@
                 el.joinForm.classList.add('active');
             }
             
+            // Auto-reconnect
             const session = loadSession();
-            if (session?.roomId) {
+            if (session && session.roomId) {
                 try {
-                    const snapshot = await get(ref(db, `rooms/${session.roomId}`));
+                    const roomRef = ref(db, `rooms/${session.roomId}`);
+                    const snapshot = await get(roomRef);
                     
                     if (snapshot.exists()) {
                         const roomData = snapshot.val();
@@ -1485,6 +1518,7 @@
                             state.turnDuration = roomData.turnDuration || 45;
                             
                             if (state.isHost) {
+                                // Don't init audio yet - needs user gesture
                                 document.body.classList.add('is-host');
                                 el.hostOnlySection.style.display = 'block';
                                 el.hostSoundSection.style.display = 'block';
@@ -1495,6 +1529,7 @@
                             onDisconnect(ref(db, `rooms/${state.roomId}/players/${state.playerId}`)).update({ online: false });
                             
                             if (roomData.state === 'playing') {
+                                // Set last announced to current to avoid re-announcing on reconnect
                                 state.lastAnnouncedTurnTime = roomData.turnStartTime || 0;
                                 state.lastAnnouncedGeneration = roomData.generation || 1;
                                 startGameListener();
