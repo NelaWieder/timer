@@ -51,7 +51,29 @@
     <div class="name-modal" id="nameModal">
         <div class="name-modal-content">
             <h2>Jak masz na imię?</h2>
-            <p>Wybierz swój kolor</p>
+            <p>Wybierz predefiniowanego gracza lub wpisz własne imię</p>
+            
+            <!-- Predefiniowani gracze -->
+            <div class="predefined-players" id="predefinedPlayers">
+                <button class="predefined-player-btn" data-name="Przemek" data-color="blue">
+                    <div class="predefined-player-color" style="background: #3b82f6;"></div>
+                    <span>Przemek</span>
+                </button>
+                <button class="predefined-player-btn" data-name="Karol" data-color="red">
+                    <div class="predefined-player-color" style="background: #f43f5e;"></div>
+                    <span>Karol</span>
+                </button>
+                <button class="predefined-player-btn" data-name="Benek" data-color="green">
+                    <div class="predefined-player-color" style="background: #22c55e;"></div>
+                    <span>Benek</span>
+                </button>
+            </div>
+            
+            <div class="custom-player-divider">
+                <span>lub</span>
+            </div>
+            
+            <!-- Własne imię -->
             <input type="text" class="name-input" id="playerNameInput" placeholder="Twoje imię" maxlength="12">
             <div class="color-picker" id="colorPicker">
                 <div class="color-option blue selected" data-color="blue"></div>
@@ -1024,9 +1046,18 @@
         }
         
         async function confirmPlayer() {
-            const name = el.playerNameInput.value.trim();
+            // Sprawdź czy wybrano predefiniowanego gracza
+            const selectedPredefined = document.querySelector('.predefined-player-btn.selected');
+            let name = '';
+            
+            if (selectedPredefined) {
+                name = selectedPredefined.dataset.name;
+            } else {
+                name = el.playerNameInput.value.trim();
+            }
+            
             if (!name) {
-                alert('Wpisz swoje imię!');
+                alert('Wybierz predefiniowanego gracza lub wpisz swoje imię!');
                 return;
             }
             
@@ -1726,12 +1757,41 @@
             if (e.key === 'Enter' && el.joinCodeInput.value.length === 4) joinRoom(el.joinCodeInput.value);
         });
         
+        // Predefiniowani gracze
+        const predefinedPlayers = document.querySelectorAll('.predefined-player-btn');
+        predefinedPlayers.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Usuń zaznaczenie z innych przycisków
+                predefinedPlayers.forEach(b => b.classList.remove('selected'));
+                // Zaznacz kliknięty przycisk
+                btn.classList.add('selected');
+                // Ustaw imię i kolor
+                state.playerName = btn.dataset.name;
+                state.playerColor = btn.dataset.color;
+                // Wyczyść input
+                el.playerNameInput.value = '';
+                // Zaktualizuj wybór koloru w color pickerze
+                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                const colorOption = document.querySelector(`.color-option[data-color="${state.playerColor}"]`);
+                if (colorOption) colorOption.classList.add('selected');
+            });
+        });
+        
+        // Reset przy wyborze własnego imienia
+        el.playerNameInput.addEventListener('input', () => {
+            if (el.playerNameInput.value.trim()) {
+                predefinedPlayers.forEach(b => b.classList.remove('selected'));
+            }
+        });
+        
         el.colorPicker.addEventListener('click', (e) => {
             const option = e.target.closest('.color-option');
             if (option) {
                 document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
                 option.classList.add('selected');
                 state.playerColor = option.dataset.color;
+                // Jeśli wybrano kolor, usuń zaznaczenie z predefiniowanych graczy
+                predefinedPlayers.forEach(b => b.classList.remove('selected'));
             }
         });
         
