@@ -290,22 +290,32 @@
                 
                 this.voicesLoaded = true;
                 
-                // Find Polish voice
-                const plVoices = voices.filter(v => v.lang && v.lang.startsWith('pl'));
-                console.log('[TTS] Polish voices found:', plVoices.length, plVoices.map(v => v.name));
+                // Find Polish voice - check various language formats (pl, pl-PL, pl_PL, pl-pl, pl_pl)
+                const plVoices = voices.filter(v => {
+                    if (!v.lang) return false;
+                    const lang = v.lang.toLowerCase();
+                    return lang === 'pl' || lang.startsWith('pl-') || lang.startsWith('pl_') || lang === 'pl-pl' || lang === 'pl_pl';
+                });
+                
+                console.log('[TTS] Polish voices found:', plVoices.length);
+                if (plVoices.length > 0) {
+                    console.log('[TTS] Polish voices:', plVoices.map(v => `${v.name} (${v.lang})`));
+                }
                 
                 if (plVoices.length > 0) {
-                    // Prefer certain voices
+                    // Prefer certain voices (Google TTS is usually best)
                     this.polishVoice = plVoices.find(v => 
                         v.name.includes('Google') || 
+                        v.name.toLowerCase().includes('google') ||
                         v.name.includes('Zosia') ||
                         v.name.includes('Paulina') ||
                         v.name.includes('Microsoft')
                     ) || plVoices[0];
                     
-                    console.log('[TTS] Selected Polish voice:', this.polishVoice.name);
+                    console.log('[TTS] Selected Polish voice:', this.polishVoice.name, '(' + this.polishVoice.lang + ')');
                 } else {
-                    console.log('[TTS] No Polish voice found - will use lang fallback');
+                    console.warn('[TTS] No Polish voice found - will use lang fallback');
+                    console.warn('[TTS] Available voices:', voices.map(v => `${v.name} (${v.lang})`).join(', '));
                     this.polishVoice = null;
                 }
             },
@@ -428,26 +438,55 @@
                             // iOS: DON'T set voice object - just use lang
                             console.log('[TTS] iOS mode - using lang only');
                         } else if (platform === 'android') {
-                            // ANDROID: Try to assign a Polish voice object directly, fallback to any available voice
+                            // ANDROID: Use Polish voice if available, otherwise fallback
                             // Android Chrome often fails when voice=null, but works when a voice object is assigned.
                             const voices = speechSynthesis.getVoices();
-                            let preferred = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pl')) || null;
                             
-                            // Fallback: jeśli brak polskiego, użyj pierwszego dostępnego głosu
+                            // Log all available voices for debugging
+                            console.log('[TTS] Android - wszystkie dostępne głosy:', voices.map(v => `${v.name} (${v.lang})`));
+                            
+                            let preferred = null;
+                            
+                            // 1. First try: use this.polishVoice if already found
+                            if (this.polishVoice) {
+                                const resolved = voices.find(v => v.name === this.polishVoice.name && v.lang === this.polishVoice.lang) || 
+                                                voices.find(v => v.name === this.polishVoice.name) ||
+                                                null;
+                                if (resolved) {
+                                    preferred = resolved;
+                                    console.log('[TTS] Android mode - using cached Polish voice:', preferred.name, '(' + preferred.lang + ')');
+                                }
+                            }
+                            
+                            // 2. Second try: search for Polish voice with various language formats
+                            if (!preferred) {
+                                preferred = voices.find(v => {
+                                    if (!v.lang) return false;
+                                    const lang = v.lang.toLowerCase();
+                                    return lang === 'pl' || lang.startsWith('pl-') || lang.startsWith('pl_') || lang === 'pl-pl' || lang === 'pl_pl';
+                                }) || null;
+                                
+                                if (preferred) {
+                                    console.log('[TTS] Android mode - found Polish voice:', preferred.name, '(' + preferred.lang + ')');
+                                }
+                            }
+                            
+                            // 3. Fallback: tylko jeśli NAPRAWDĘ brak polskiego głosu
                             if (!preferred && voices.length > 0) {
                                 preferred = voices[0];
-                                console.log('[TTS] Android mode - brak głosu polskiego, używam fallback:', preferred.name, '(' + preferred.lang + ')');
+                                console.warn('[TTS] Android mode - UWAGA: brak głosu polskiego, używam fallback:', preferred.name, '(' + preferred.lang + ')');
+                                console.warn('[TTS] Android mode - Sprawdź czy polski głos jest zainstalowany w ustawieniach systemowych!');
                             }
                             
                             if (preferred) {
                                 utterance.voice = preferred;
                                 utterance.lang = preferred.lang; // Ustaw język zgodny z głosem
-                                console.log('[TTS] Android mode - using voice:', preferred.name, '(' + preferred.lang + ')');
+                                console.log('[TTS] Android mode - final voice:', preferred.name, '(' + preferred.lang + ')');
                             } else {
                                 // Ostateczny fallback: no voice object, just lang
                                 utterance.voice = null;
                                 utterance.lang = 'pl-PL';
-                                console.log('[TTS] Android mode - no voices found, using lang only');
+                                console.warn('[TTS] Android mode - no voices found, using lang only');
                             }
                         } else {
                             // Desktop: Use best voice if available
@@ -547,12 +586,32 @@
                                     retry.pitch = platform === 'android' ? 1.0 : 0.95;
                                     retry.volume = 1.0;
                                     if (platform === 'android') {
-                                        // Retry: try Polish voice first, then fallback to any available
+                                        // Retry: try Polish voice first with better detection, then fallback
                                         const voices = speechSynthesis.getVoices();
-                                        let retryVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pl')) || null;
+                                        let retryVoice = null;
+                                        
+                                        // Try cached Polish voice first
+                                        if (this.polishVoice) {
+                                            retryVoice = voices.find(v => v.name === this.polishVoice.name && v.lang === this.polishVoice.lang) || 
+                                                        voices.find(v => v.name === this.polishVoice.name) ||
+                                                        null;
+                                        }
+                                        
+                                        // Search for Polish voice with various formats
+                                        if (!retryVoice) {
+                                            retryVoice = voices.find(v => {
+                                                if (!v.lang) return false;
+                                                const lang = v.lang.toLowerCase();
+                                                return lang === 'pl' || lang.startsWith('pl-') || lang.startsWith('pl_') || lang === 'pl-pl' || lang === 'pl_pl';
+                                            }) || null;
+                                        }
+                                        
+                                        // Fallback only if no Polish voice found
                                         if (!retryVoice && voices.length > 0) {
                                             retryVoice = voices[0];
+                                            console.warn('[TTS] Android retry - using fallback voice:', retryVoice.name, '(' + retryVoice.lang + ')');
                                         }
+                                        
                                         if (retryVoice) {
                                             retry.voice = retryVoice;
                                             retry.lang = retryVoice.lang;
@@ -581,12 +640,32 @@
                                     speechSynthesis.cancel();
                                     cleanup();
                                     clearTicker();
-                                    // Try with voice object (Polish first, then fallback to any available)
+                                    // Try with voice object (Polish first with better detection, then fallback)
                                     const voices = speechSynthesis.getVoices();
-                                    let retryVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pl')) || null;
+                                    let retryVoice = null;
+                                    
+                                    // Try cached Polish voice first
+                                    if (this.polishVoice) {
+                                        retryVoice = voices.find(v => v.name === this.polishVoice.name && v.lang === this.polishVoice.lang) || 
+                                                    voices.find(v => v.name === this.polishVoice.name) ||
+                                                    null;
+                                    }
+                                    
+                                    // Search for Polish voice with various formats
+                                    if (!retryVoice) {
+                                        retryVoice = voices.find(v => {
+                                            if (!v.lang) return false;
+                                            const lang = v.lang.toLowerCase();
+                                            return lang === 'pl' || lang.startsWith('pl-') || lang.startsWith('pl_') || lang === 'pl-pl' || lang === 'pl_pl';
+                                        }) || null;
+                                    }
+                                    
+                                    // Fallback only if no Polish voice found
                                     if (!retryVoice && voices.length > 0) {
                                         retryVoice = voices[0];
+                                        console.warn('[TTS] Android hard retry - using fallback voice:', retryVoice.name, '(' + retryVoice.lang + ')');
                                     }
+                                    
                                     const retry2 = new SpeechSynthesisUtterance(text);
                                     retry2.rate = 1.0;
                                     retry2.pitch = 1.0;
@@ -594,10 +673,10 @@
                                     if (retryVoice) {
                                         retry2.voice = retryVoice;
                                         retry2.lang = retryVoice.lang;
-                                        console.warn('[TTS] Android: retry with voice:', retryVoice.name, '(' + retryVoice.lang + ')');
+                                        console.warn('[TTS] Android: hard retry with voice:', retryVoice.name, '(' + retryVoice.lang + ')');
                                     } else {
                                         retry2.lang = 'pl-PL';
-                                        console.warn('[TTS] Android: retry without voice object (lang only)');
+                                        console.warn('[TTS] Android: hard retry without voice object (lang only)');
                                     }
                                     if (speechSynthesis.paused) speechSynthesis.resume();
                                     speechSynthesis.speak(retry2);
