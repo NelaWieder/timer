@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0118">
+    <title>Mars Timer | Multiplayer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800&subset=latin-ext&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #a855f7;
+            --primary-light: #c084fc;
+            --primary-dark: #7c3aed;
+            --accent-pink: #ec4899;
+            --accent-cyan: #22d3ee;
+            --accent-blue: #3b82f6;
+            --bg-dark: #0a0118;
+            --bg-darker: #050010;
+            --surface: #1a0a2e;
+            --surface-light: #2d1b4e;
+            --text-primary: #f5f0ff;
+            --text-secondary: #c4b5fd;
+            --text-muted: #7c6b9e;
+            --glow-purple: rgba(168, 85, 247, 0.5);
+            --glow-pink: rgba(236, 72, 153, 0.4);
+            --glow-cyan: rgba(34, 211, 238, 0.4);
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --danger: #f43f5e;
+            --font-display: 'Rajdhani', 'Exo 2', sans-serif;
+            --font-body: 'Exo 2', sans-serif;
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 16px;
+            --transition-fast: 150ms ease;
+            --transition-normal: 300ms ease;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; overflow: hidden; touch-action: manipulation; }
+        body { 
+            font-family: var(--font-body); 
+            background: var(--bg-dark); 
+            color: var(--text-primary); 
+            min-height: 100vh; 
+            min-height: 100dvh; 
+            display: flex; 
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .galaxy-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            background: 
+                radial-gradient(ellipse 50% 40% at 45% 40%, rgba(236, 72, 153, 0.35) 0%, transparent 50%),
+                radial-gradient(ellipse 70% 50% at 20% 30%, rgba(34, 211, 238, 0.3) 0%, transparent 45%),
+                radial-gradient(ellipse 60% 40% at 80% 65%, rgba(34, 211, 238, 0.25) 0%, transparent 40%),
+                radial-gradient(ellipse 80% 55% at 60% 25%, rgba(168, 85, 247, 0.3) 0%, transparent 50%),
+                radial-gradient(ellipse 65% 50% at 25% 70%, rgba(139, 92, 246, 0.25) 0%, transparent 45%),
+                linear-gradient(180deg, #030008 0%, #0a0118 25%, #0f0225 50%, #0a0118 75%, #030008 100%);
+        }
+        
+        .stars {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-image: 
+                radial-gradient(2px 2px at 8% 12%, rgba(168, 85, 247, 0.9), transparent),
+                radial-gradient(2px 2px at 15% 38%, rgba(255,255,255,0.8), transparent),
+                radial-gradient(2px 2px at 22% 72%, rgba(34, 211, 238, 0.8), transparent),
+                radial-gradient(2px 2px at 35% 85%, rgba(255,255,255,0.7), transparent),
+                radial-gradient(2px 2px at 48% 52%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(2px 2px at 55% 32%, rgba(34, 211, 238, 0.7), transparent),
+                radial-gradient(2px 2px at 75% 58%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(2px 2px at 82% 42%, rgba(168, 85, 247, 0.8), transparent),
+                radial-gradient(1px 1px at 3% 28%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1px 1px at 50% 42%, rgba(255,255,255,0.3), transparent),
+                radial-gradient(1px 1px at 90% 88%, rgba(255,255,255,0.3), transparent);
+            animation: twinkle 5s ease-in-out infinite;
+        }
+        @keyframes twinkle { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.5; } }
+        
+        .bg-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-color: rgba(10, 1, 24, 0.4);
+        }
+        
+        .screen { display: none; flex-direction: column; height: 100%; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+        .screen.active { display: flex; }
+        
+        /* LOBBY SCREEN */
+        .lobby-screen { justify-content: center; align-items: center; padding: 24px; text-align: center; }
+        .lobby-logo { margin-bottom: 32px; }
+        .lobby-logo h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 8vw, 2.4rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--primary) 50%, var(--accent-pink) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .lobby-logo p { font-size: 0.75rem; color: var(--text-secondary); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 4px; }
+        
+        .lobby-actions { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 300px; }
+        .lobby-btn { padding: 18px 24px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-primary); border: 2px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); cursor: pointer; transition: all var(--transition-normal); }
+        .lobby-btn.primary { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); box-shadow: 0 0 30px var(--glow-purple); }
+        .lobby-btn.secondary { background: transparent; }
+        .lobby-btn:hover { transform: translateY(-2px); box-shadow: 0 0 40px var(--glow-purple); }
+        .lobby-btn:active { transform: scale(0.98); }
+        
+        .lobby-divider { display: flex; align-items: center; gap: 16px; color: var(--text-muted); font-size: 0.75rem; margin: 8px 0; }
+        .lobby-divider::before, .lobby-divider::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--primary-dark), transparent); }
+        
+        .join-form { display: none; flex-direction: column; gap: 16px; width: 100%; max-width: 300px; margin-top: 24px; }
+        .join-form.active { display: flex; }
+        .join-input { padding: 16px; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; text-align: center; color: var(--text-primary); background: var(--surface); border: 2px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-md); outline: none; }
+        .join-input:focus { border-color: var(--primary); box-shadow: 0 0 20px var(--glow-purple); }
+        .join-input::placeholder { color: var(--text-muted); letter-spacing: 0.2em; font-size: 1rem; }
+        
+        /* WAITING ROOM */
+        .waiting-screen { padding: 24px; }
+        .room-header { text-align: center; margin-bottom: 24px; }
+        .room-code-label { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+        .room-code { font-family: var(--font-display); font-size: 3rem; font-weight: 700; letter-spacing: 0.3em; color: var(--accent-cyan); text-shadow: 0 0 30px var(--glow-cyan); }
+        .qr-container { margin: 16px auto; padding: 12px; background: white; border-radius: var(--radius-md); width: fit-content; }
+        .qr-container canvas { display: block; }
+        
+        .time-setting-mini { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 16px 0; padding: 12px; background: var(--surface); border-radius: var(--radius-md); }
+        .time-btn-mini { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 1.3rem; cursor: pointer; }
+        .time-btn-mini:hover { background: rgba(168, 85, 247, 0.25); }
+        .time-display-mini { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; min-width: 60px; text-align: center; }
+        .time-label-mini { font-size: 0.7rem; color: var(--text-muted); }
+        
+        .players-waiting { flex: 1; overflow-y: auto; }
+        .players-waiting-title { font-family: var(--font-display); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); margin-bottom: 16px; }
+        .player-waiting-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: linear-gradient(135deg, var(--surface), var(--bg-dark)); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: var(--radius-md); margin-bottom: 10px; }
+        .player-waiting-item.offline { opacity: 0.4; }
+        .player-waiting-color { width: 32px; height: 32px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.2); }
+        .player-waiting-name { flex: 1; font-weight: 500; }
+        .player-waiting-host { font-size: 0.7rem; color: var(--warning); text-transform: uppercase; letter-spacing: 0.1em; }
+        .player-waiting-you { font-size: 0.7rem; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.1em; }
+        
+        .waiting-actions { margin-top: auto; padding-top: 16px; }
+        .start-game-btn { width: 100%; padding: 18px; font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-primary); background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--accent-pink)); border: 2px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); cursor: pointer; box-shadow: 0 0 30px var(--glow-purple); }
+        .start-game-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+        .leave-btn { width: 100%; padding: 14px; margin-top: 10px; font-family: var(--font-display); font-size: 0.85rem; font-weight: 600; color: var(--danger); background: transparent; border: 1px solid rgba(244, 63, 94, 0.3); border-radius: var(--radius-md); cursor: pointer; }
+        
+        /* NAME INPUT MODAL */
+        .name-modal { position: fixed; inset: 0; background: rgba(5, 0, 16, 0.9); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 300; backdrop-filter: blur(10px); }
+        .name-modal.active { display: flex; }
+        .name-modal-content { background: var(--surface); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-lg); padding: 32px; width: 100%; max-width: 340px; text-align: center; }
+        .name-modal h2 { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); }
+        .name-modal p { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px; }
+        .name-input { width: 100%; padding: 14px; font-family: var(--font-body); font-size: 1rem; text-align: center; color: var(--text-primary); background: var(--bg-dark); border: 2px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-md); outline: none; margin-bottom: 16px; }
+        .name-input:focus { border-color: var(--primary); }
+        .color-picker { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        .color-option { width: 40px; height: 40px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: all var(--transition-fast); }
+        .color-option:hover { transform: scale(1.1); }
+        .color-option.selected { border-color: white; box-shadow: 0 0 15px currentColor; }
+        .color-option.red { background: linear-gradient(135deg, #f43f5e, #be123c); }
+        .color-option.blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .color-option.green { background: linear-gradient(135deg, #22c55e, #15803d); }
+        .color-option.yellow { background: linear-gradient(135deg, #facc15, #ca8a04); }
+        .color-option.black { background: linear-gradient(135deg, #6b7280, #1f2937); }
+        
+        /* GAME SCREEN */
+        .game-screen { position: relative; }
+        .generation-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: linear-gradient(180deg, rgba(10, 1, 24, 0.85), rgba(10, 1, 24, 0.5)); border-bottom: 1px solid rgba(168, 85, 247, 0.2); backdrop-filter: blur(10px); }
+        .generation-info { display: flex; align-items: baseline; gap: 6px; }
+        .game-timer { font-family: var(--font-display); font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); padding: 5px 12px; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: 16px; }
+        .generation-label { font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase; }
+        .generation-number { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--primary); text-shadow: 0 0 20px var(--glow-purple); }
+        .menu-btn { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; }
+        .menu-btn:hover { border-color: var(--primary); color: var(--primary); }
+        
+        .players-strip { display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto; scrollbar-width: none; background: linear-gradient(180deg, rgba(10, 1, 24, 0.3), transparent); }
+        .players-strip::-webkit-scrollbar { display: none; }
+        .player-chip { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: linear-gradient(135deg, var(--surface), var(--bg-darker)); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; font-family: var(--font-body); font-size: 0.8rem; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+        .player-chip.active { background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(139, 92, 246, 0.2)); border-color: var(--primary); box-shadow: 0 0 15px var(--glow-purple); }
+        .player-chip.passed-gen { opacity: 0.25; text-decoration: line-through; }
+        .player-chip.offline { opacity: 0.4; }
+        .player-chip-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+        .player-chip-status { font-family: var(--font-display); font-size: 0.6rem; font-weight: 600; padding: 2px 6px; background: rgba(0,0,0,0.4); border-radius: 8px; text-transform: uppercase; }
+        
+        .timer-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; min-height: 0; }
+        .current-player-name { font-family: var(--font-display); font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; text-shadow: 0 0 30px currentColor; }
+        .current-player-label { font-family: var(--font-body); font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 20px; }
+        .timer-display { position: relative; width: min(260px, 70vw); height: min(260px, 70vw); display: flex; align-items: center; justify-content: center; }
+        .mars-planet { position: absolute; width: 78%; height: 78%; border-radius: 50%; overflow: hidden; box-shadow: inset -18px -12px 35px rgba(0,0,0,0.5), inset 10px 10px 20px rgba(255,180,120,0.12), 0 0 35px var(--glow-purple), 0 0 70px var(--glow-pink); }
+        .mars-planet img { width: 145%; height: 145%; object-fit: cover; object-position: center; margin: -22.5%; filter: brightness(1.15) saturate(1.2) contrast(1.08); }
+        .timer-overlay { position: absolute; width: 78%; height: 78%; border-radius: 50%; background: radial-gradient(circle, rgba(10,1,24,0.25) 0%, rgba(10,1,24,0.45) 100%); }
+        .timer-ring { position: absolute; inset: 0; }
+        .timer-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .timer-ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 12; }
+        .timer-ring-progress { fill: none; stroke: url(#timerGradient); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 816.81; stroke-dashoffset: 816.81; transition: stroke-dashoffset 0.2s linear; filter: drop-shadow(0 0 10px var(--glow-purple)); }
+        .timer-ring-progress.overtime { stroke: var(--danger); filter: drop-shadow(0 0 15px rgba(244, 63, 94, 0.9)); }
+        .timer-text { font-family: var(--font-display); font-size: clamp(2.8rem, 15vw, 4.2rem); font-weight: 700; color: #ffffff; text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7), 0 0 40px var(--glow-purple); position: relative; z-index: 10; }
+        .timer-text.overtime { color: var(--danger); animation: overtimePulse 1s ease-in-out infinite; }
+        @keyframes overtimePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .timer-text.warning { animation: pulse-warning 0.5s ease infinite; }
+        @keyframes pulse-warning { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        
+        .action-area { padding: 16px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+        .pass-btn { width: 100%; padding: clamp(18px, 5vw, 26px); font-family: var(--font-display); font-size: clamp(1.3rem, 5vw, 1.7rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-primary); background: linear-gradient(135deg, var(--primary-dark), var(--primary)); border: 2px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); cursor: pointer; box-shadow: 0 8px 32px var(--glow-purple); position: relative; overflow: hidden; }
+        .pass-btn:active { transform: scale(0.98); }
+        .pass-btn:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
+        .secondary-actions { display: flex; gap: 10px; margin-top: 12px; }
+        .action-btn { flex: 1; padding: 14px 10px; font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); background: linear-gradient(135deg, var(--surface), var(--bg-darker)); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: var(--radius-md); cursor: pointer; }
+        .action-btn:hover { border-color: rgba(168, 85, 247, 0.4); color: var(--text-primary); }
+        .action-btn:active { transform: scale(0.98); }
+        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .action-btn.pass-gen { position: relative; overflow: hidden; }
+        .action-btn.pass-gen .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, rgba(168, 85, 247, 0.4), rgba(139, 92, 246, 0.3)); }
+        .action-btn.pass-gen span { position: relative; z-index: 1; }
+        .action-btn.admin-time { border-color: rgba(251, 191, 36, 0.4); color: var(--warning); }
+        .action-btn.admin-time.active { background: rgba(251, 191, 36, 0.2); }
+        .action-btn.host-only { display: none; }
+        .is-host .action-btn.host-only { display: block; }
+        
+        .admin-overlay { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(10, 1, 24, 0.95), rgba(5, 0, 16, 0.98)); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; z-index: 100; backdrop-filter: blur(10px); }
+        .admin-overlay.active { display: flex; }
+        .admin-overlay-icon { width: 80px; height: 80px; margin-bottom: 20px; color: var(--warning); filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5)); animation: iconPulse 2s ease-in-out infinite; }
+        @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .admin-overlay h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 6vw, 2rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--warning); margin-bottom: 10px; }
+        .admin-overlay p { color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem; }
+        .resume-btn { padding: 18px 48px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bg-dark); background: linear-gradient(135deg, var(--warning), #fcd34d); border: none; border-radius: var(--radius-md); cursor: pointer; box-shadow: 0 0 30px rgba(251, 191, 36, 0.4); }
+        .resume-btn:hover { transform: translateY(-2px); }
+        .resume-btn.host-only { display: none; }
+        .is-host .resume-btn.host-only { display: inline-block; }
+        
+        .host-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(320px, 85vw); background: linear-gradient(180deg, var(--bg-darker), var(--bg-dark)); border-left: 1px solid rgba(168, 85, 247, 0.3); transform: translateX(100%); transition: transform var(--transition-normal); z-index: 200; overflow-y: auto; padding: 20px; padding-top: calc(20px + env(safe-area-inset-top)); }
+        .host-panel.open { transform: translateX(0); }
+        .host-panel-backdrop { position: fixed; inset: 0; background: rgba(5,0,16,0.7); opacity: 0; visibility: hidden; transition: all var(--transition-normal); z-index: 199; backdrop-filter: blur(4px); }
+        .host-panel-backdrop.open { opacity: 1; visibility: visible; }
+        .host-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 1px solid rgba(168, 85, 247, 0.2); }
+        .host-panel-header h2 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; color: var(--primary); }
+        .close-panel-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); font-size: 1.2rem; }
+        .host-panel-section { margin-bottom: 24px; }
+        .host-panel-section-title { font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+        .host-action-btn { width: 100%; padding: 14px; margin-bottom: 8px; font-family: var(--font-body); font-size: 0.85rem; font-weight: 500; color: var(--text-primary); background: linear-gradient(135deg, var(--surface), var(--bg-dark)); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: var(--radius-md); cursor: pointer; text-align: left; }
+        .host-action-btn:hover { border-color: rgba(168, 85, 247, 0.4); }
+        .host-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .host-action-btn.danger { color: var(--danger); border-color: rgba(244, 63, 94, 0.3); }
+        .host-action-btn.danger:hover { background: rgba(244, 63, 94, 0.1); }
+        .next-gen-btn { background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue)); border-color: rgba(34, 211, 238, 0.5); box-shadow: 0 0 20px var(--glow-cyan); text-align: center; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+        
+        .room-info-small { font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(168, 85, 247, 0.2); }
+        .room-info-small span { color: var(--accent-cyan); font-weight: 600; letter-spacing: 0.1em; }
+        
+        .connection-status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 6px 16px; background: var(--surface); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 20px; font-size: 0.7rem; color: var(--text-secondary); z-index: 250; display: none; }
+        .connection-status.offline { display: block; border-color: var(--danger); color: var(--danger); }
+        
+        .svg-defs { position: absolute; width: 0; height: 0; }
+        
+        @media (max-height: 500px) and (orientation: landscape) {
+            .timer-area { padding: 8px; }
+            .timer-display { width: min(180px, 40vh); height: min(180px, 40vh); }
+            .current-player-name { font-size: 1.2rem; margin-bottom: 0; }
+            .current-player-label { margin-bottom: 8px; }
+            .action-area { padding: 8px 16px; }
+            .pass-btn { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="galaxy-bg"></div>
+    <div class="stars"></div>
+    <div class="bg-overlay"></div>
+    
+    <svg class="svg-defs">
+        <defs>
+            <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#a855f7"/>
+                <stop offset="100%" style="stop-color:#ec4899"/>
+            </linearGradient>
+        </defs>
+    </svg>
+    
+    <div class="connection-status" id="connectionStatus">⚠ Brak połączenia...</div>
+    
+    <!-- LOBBY SCREEN -->
+    <div class="screen lobby-screen active" id="lobbyScreen">
+        <div class="lobby-logo">
+            <h1>Mars Timer</h1>
+            <p>Multiplayer</p>
+        </div>
+        <div class="lobby-actions">
+            <button class="lobby-btn primary" id="createRoomBtn">Stwórz pokój</button>
+            <div class="lobby-divider">lub</div>
+            <button class="lobby-btn secondary" id="showJoinBtn">Dołącz do gry</button>
+        </div>
+        <div class="join-form" id="joinForm">
+            <input type="text" class="join-input" id="joinCodeInput" placeholder="KOD" maxlength="4" autocomplete="off">
+            <button class="lobby-btn primary" id="joinRoomBtn">Dołącz</button>
+        </div>
+    </div>
+    
+    <!-- NAME MODAL -->
+    <div class="name-modal" id="nameModal">
+        <div class="name-modal-content">
+            <h2>Jak masz na imię?</h2>
+            <p>Wybierz swój kolor</p>
+            <input type="text" class="name-input" id="playerNameInput" placeholder="Twoje imię" maxlength="12">
+            <div class="color-picker" id="colorPicker">
+                <div class="color-option blue selected" data-color="blue"></div>
+                <div class="color-option red" data-color="red"></div>
+                <div class="color-option green" data-color="green"></div>
+                <div class="color-option yellow" data-color="yellow"></div>
+                <div class="color-option black" data-color="black"></div>
+            </div>
+            <button class="lobby-btn primary" id="confirmNameBtn">Potwierdź</button>
+        </div>
+    </div>
+    
+    <!-- WAITING ROOM -->
+    <div class="screen waiting-screen" id="waitingScreen">
+        <div class="room-header">
+            <div class="room-code-label">Kod pokoju</div>
+            <div class="room-code" id="roomCodeDisplay">----</div>
+            <div class="qr-container" id="qrContainer"></div>
+        </div>
+        <div class="time-setting-mini" id="timeSettingMini" style="display:none;">
+            <div class="time-label-mini">Czas tury:</div>
+            <button class="time-btn-mini" id="timeDownMini">−</button>
+            <div class="time-display-mini"><span id="timeValueMini">45</span>s</div>
+            <button class="time-btn-mini" id="timeUpMini">+</button>
+        </div>
+        <div class="players-waiting">
+            <div class="players-waiting-title">Gracze w pokoju</div>
+            <div id="waitingPlayersList"></div>
+        </div>
+        <div class="waiting-actions">
+            <button class="start-game-btn" id="startGameBtn" disabled>Czekam na graczy...</button>
+            <button class="leave-btn" id="leaveRoomBtn">Opuść pokój</button>
+        </div>
+    </div>
+    
+    <!-- GAME SCREEN -->
+    <div class="screen game-screen" id="gameScreen">
+        <div class="generation-bar">
+            <div class="generation-info">
+                <span class="generation-label">Pokolenie</span>
+                <span class="generation-number" id="genNumber">1</span>
+            </div>
+            <div class="game-timer" id="gameTimer">0:00</div>
+            <button class="menu-btn" id="menuBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="players-strip" id="playersStrip"></div>
+        <div class="timer-area">
+            <div class="current-player-name" id="currentPlayerName">---</div>
+            <div class="current-player-label" id="currentPlayerLabel">Tura gracza</div>
+            <div class="timer-display">
+                <div class="mars-planet">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/0/02/OSIRIS_Mars_true_color.jpg" alt="Mars">
+                </div>
+                <div class="timer-overlay"></div>
+                <div class="timer-ring">
+                    <svg viewBox="0 0 280 280">
+                        <circle class="timer-ring-bg" cx="140" cy="140" r="130"/>
+                        <circle class="timer-ring-progress" id="timerProgress" cx="140" cy="140" r="130"/>
+                    </svg>
+                </div>
+                <div class="timer-text" id="timerText">0:45</div>
+            </div>
+        </div>
+        <div class="action-area">
+            <button class="pass-btn" id="passBtn">PASS</button>
+            <div class="secondary-actions">
+                <button class="action-btn pass-gen" id="passGenBtn"><div class="progress-fill"></div><span>Pass Gen</span></button>
+                <button class="action-btn admin-time host-only" id="adminTimeBtn">Admin Time</button>
+            </div>
+        </div>
+        <div class="admin-overlay" id="adminOverlay">
+            <svg class="admin-overlay-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <h2 id="overlayTitle">Admin Time</h2>
+            <p id="overlayText">Gra wstrzymana</p>
+            <button class="resume-btn host-only" id="resumeBtn">Wznów grę</button>
+        </div>
+    </div>
+    
+    <!-- HOST PANEL -->
+    <div class="host-panel-backdrop" id="hostPanelBackdrop"></div>
+    <div class="host-panel" id="hostPanel">
+        <div class="host-panel-header">
+            <h2>Panel</h2>
+            <button class="close-panel-btn" id="closePanelBtn">✕</button>
+        </div>
+        <div class="host-panel-section" id="hostOnlySection" style="display:none;">
+            <div class="host-panel-section-title">Kontrola gry (Host)</div>
+            <button class="host-action-btn next-gen-btn" id="nextGenBtn" style="display:none;">🚀 Następne Pokolenie</button>
+            <button class="host-action-btn" id="forceNextBtn">⏭ Następna tura</button>
+            <button class="host-action-btn" id="hostAdminBtn">⏸ Admin Time</button>
+        </div>
+        <div class="host-panel-section" id="hostSoundSection" style="display:none;">
+            <div class="host-panel-section-title">Dźwięk</div>
+            <button class="host-action-btn" id="muteBtn">🔊 Wycisz dźwięki</button>
+        </div>
+        <div class="host-panel-section">
+            <div class="host-panel-section-title">Pokój</div>
+            <button class="host-action-btn danger" id="leaveGameBtn">🚪 Opuść grę</button>
+        </div>
+        <div class="room-info-small">Kod pokoju: <span id="roomCodeSmall">----</span></div>
+    </div>
+
+    <!-- QRCode Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <!-- Firebase -->
+    <script type="module">
+        // =============================================
+        // FIREBASE CONFIG - UZUPEŁNIJ SWOJE DANE
+        // =============================================
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getDatabase, ref, set, get, onValue, off, update, remove, onDisconnect, serverTimestamp 
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+        
+        const firebaseConfig = {
+            // ========================================
+            // UZUPEŁNIJ PONIŻSZE DANE Z FIREBASE CONSOLE
+            // ========================================
+        apiKey: "AIzaSyCQwMpiRgAIXs7g6el_35HepBqOcm6gQVU",
+        authDomain: "tm-timer-nw.firebaseapp.com",
+        databaseURL: "https://tm-timer-nw-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "tm-timer-nw",
+        storageBucket: "tm-timer-nw.firebasestorage.app",
+        messagingSenderId: "425133932279",
+        appId: "1:425133932279:web:c631018437f5dcdf115df2"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        // =============================================
+        // CONSTANTS
+        // =============================================
+        const COLORS = ['blue', 'red', 'green', 'yellow', 'black'];
+        const COLOR_HEX = { red: '#f43f5e', blue: '#3b82f6', green: '#22c55e', yellow: '#facc15', black: '#6b7280' };
+        
+        // =============================================
+        // STATE
+        // =============================================
+        let state = {
+            roomId: null,
+            playerId: null,
+            playerName: '',
+            playerColor: 'blue',
+            isHost: false,
+            isMuted: false,
+            turnDuration: 45,
+            players: {},
+            gameState: null,
+            localTimerInterval: null,
+            gameTimerInterval: null,
+            audioContext: null,
+            holdTimeout: null,
+            holdProgress: 0,
+            lastWarningTime: -1
+        };
+        
+        let unsubscribers = [];
+        
+        // =============================================
+        // DOM ELEMENTS
+        // =============================================
+        const $ = id => document.getElementById(id);
+        const el = {
+            connectionStatus: $('connectionStatus'),
+            lobbyScreen: $('lobbyScreen'),
+            waitingScreen: $('waitingScreen'),
+            gameScreen: $('gameScreen'),
+            nameModal: $('nameModal'),
+            createRoomBtn: $('createRoomBtn'),
+            showJoinBtn: $('showJoinBtn'),
+            joinForm: $('joinForm'),
+            joinCodeInput: $('joinCodeInput'),
+            joinRoomBtn: $('joinRoomBtn'),
+            playerNameInput: $('playerNameInput'),
+            colorPicker: $('colorPicker'),
+            confirmNameBtn: $('confirmNameBtn'),
+            roomCodeDisplay: $('roomCodeDisplay'),
+            qrContainer: $('qrContainer'),
+            timeSettingMini: $('timeSettingMini'),
+            timeValueMini: $('timeValueMini'),
+            timeUpMini: $('timeUpMini'),
+            timeDownMini: $('timeDownMini'),
+            waitingPlayersList: $('waitingPlayersList'),
+            startGameBtn: $('startGameBtn'),
+            leaveRoomBtn: $('leaveRoomBtn'),
+            genNumber: $('genNumber'),
+            gameTimer: $('gameTimer'),
+            playersStrip: $('playersStrip'),
+            currentPlayerName: $('currentPlayerName'),
+            currentPlayerLabel: $('currentPlayerLabel'),
+            timerText: $('timerText'),
+            timerProgress: $('timerProgress'),
+            passBtn: $('passBtn'),
+            passGenBtn: $('passGenBtn'),
+            adminTimeBtn: $('adminTimeBtn'),
+            adminOverlay: $('adminOverlay'),
+            overlayTitle: $('overlayTitle'),
+            overlayText: $('overlayText'),
+            resumeBtn: $('resumeBtn'),
+            menuBtn: $('menuBtn'),
+            hostPanel: $('hostPanel'),
+            hostPanelBackdrop: $('hostPanelBackdrop'),
+            closePanelBtn: $('closePanelBtn'),
+            hostOnlySection: $('hostOnlySection'),
+            hostSoundSection: $('hostSoundSection'),
+            nextGenBtn: $('nextGenBtn'),
+            forceNextBtn: $('forceNextBtn'),
+            hostAdminBtn: $('hostAdminBtn'),
+            muteBtn: $('muteBtn'),
+            leaveGameBtn: $('leaveGameBtn'),
+            roomCodeSmall: $('roomCodeSmall')
+        };
+        
+        // =============================================
+        // UTILITY FUNCTIONS
+        // =============================================
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+            let code = '';
+            for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+        
+        function generatePlayerId() {
+            return 'p_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        }
+        
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            $(screenId).classList.add('active');
+        }
+        
+        function formatTime(seconds) {
+            const abs = Math.abs(Math.ceil(seconds));
+            const mins = Math.floor(abs / 60);
+            const secs = abs % 60;
+            const sign = seconds < 0 ? '-' : '';
+            return mins > 0 ? `${sign}${mins}:${secs.toString().padStart(2, '0')}` : `${sign}${secs}`;
+        }
+        
+        function formatGameTime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            if (hrs > 0) return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // =============================================
+        // AUDIO (HOST ONLY!)
+        // =============================================
+        function initAudio() {
+            if (!state.audioContext) {
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (state.audioContext.state === 'suspended') state.audioContext.resume();
+        }
+        
+        function playBeep(freq = 800, dur = 150, type = 'sine') {
+            if (!state.isHost || !state.audioContext || state.isMuted) return;
+            const osc = state.audioContext.createOscillator();
+            const gain = state.audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(state.audioContext.destination);
+            osc.frequency.value = freq;
+            osc.type = type;
+            gain.gain.setValueAtTime(0.3, state.audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, state.audioContext.currentTime + dur / 1000);
+            osc.start(state.audioContext.currentTime);
+            osc.stop(state.audioContext.currentTime + dur / 1000);
+        }
+        
+        function playTurnStart() {
+            playBeep(600, 100);
+            setTimeout(() => playBeep(800, 150), 120);
+        }
+        
+        function playWarning() {
+            playBeep(400, 200, 'square');
+        }
+        
+        function playTimeUp() {
+            playBeep(300, 300, 'sawtooth');
+            setTimeout(() => playBeep(250, 400, 'sawtooth'), 350);
+        }
+        
+        function speak(text) {
+            if (!state.isHost || state.isMuted || !('speechSynthesis' in window)) return;
+            speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(text);
+            utt.lang = 'pl-PL';
+            utt.rate = 1.0;
+            utt.pitch = 0.85;
+            const voices = speechSynthesis.getVoices();
+            const plVoice = voices.find(v => v.lang.startsWith('pl'));
+            if (plVoice) utt.voice = plVoice;
+            speechSynthesis.speak(utt);
+        }
+        
+        // =============================================
+        // WAKE LOCK
+        // =============================================
+        let wakeLock = null;
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => { wakeLock = null; });
+                } catch (err) { console.log('Wake Lock error:', err); }
+            }
+        }
+        
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+        });
+        
+        // =============================================
+        // LOCAL STORAGE (Auto-Reconnect)
+        // =============================================
+        function saveSession() {
+            localStorage.setItem('marsTimer_session', JSON.stringify({
+                roomId: state.roomId,
+                playerId: state.playerId,
+                playerName: state.playerName,
+                playerColor: state.playerColor,
+                isHost: state.isHost
+            }));
+        }
+        
+        function loadSession() {
+            try {
+                const saved = localStorage.getItem('marsTimer_session');
+                if (saved) return JSON.parse(saved);
+            } catch(e) {}
+            return null;
+        }
+        
+        function clearSession() {
+            localStorage.removeItem('marsTimer_session');
+        }
+        
+        // =============================================
+        // QR CODE
+        // =============================================
+        function generateQR(code) {
+            el.qrContainer.innerHTML = '';
+            const url = window.location.href.split('?')[0] + '?room=' + code;
+            if (typeof QRCode !== 'undefined') {
+                QRCode.toCanvas(url, { width: 120, margin: 1 }, (err, canvas) => {
+                    if (!err) el.qrContainer.appendChild(canvas);
+                });
+            }
+        }
+        
+        // =============================================
+        // FIREBASE: ROOM MANAGEMENT
+        // =============================================
+        async function createRoom() {
+            const roomCode = generateRoomCode();
+            state.roomId = roomCode;
+            state.playerId = generatePlayerId();
+            state.isHost = true;
+            
+            const roomRef = ref(db, `rooms/${roomCode}`);
+            await set(roomRef, {
+                host: state.playerId,
+                state: 'waiting',
+                turnDuration: state.turnDuration,
+                createdAt: serverTimestamp()
+            });
+            
+            showNameModal();
+        }
+        
+        async function joinRoom(code) {
+            const roomCode = code.toUpperCase();
+            const roomRef = ref(db, `rooms/${roomCode}`);
+            const snapshot = await get(roomRef);
+            
+            if (!snapshot.exists()) {
+                alert('Nie znaleziono pokoju o tym kodzie!');
+                return false;
+            }
+            
+            const roomData = snapshot.val();
+            if (roomData.state !== 'waiting') {
+                alert('Gra już się rozpoczęła!');
+                return false;
+            }
+            
+            state.roomId = roomCode;
+            state.playerId = generatePlayerId();
+            state.isHost = false;
+            state.turnDuration = roomData.turnDuration || 45;
+            
+            showNameModal();
+            return true;
+        }
+        
+        function showNameModal() {
+            el.nameModal.classList.add('active');
+            el.playerNameInput.focus();
+        }
+        
+        async function confirmPlayer() {
+            const name = el.playerNameInput.value.trim();
+            if (!name) {
+                alert('Wpisz swoje imię!');
+                return;
+            }
+            
+            state.playerName = name;
+            
+            // Count existing players for order
+            const playersRef = ref(db, `rooms/${state.roomId}/players`);
+            const snapshot = await get(playersRef);
+            const existingPlayers = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+            
+            // Add player to room
+            const playerRef = ref(db, `rooms/${state.roomId}/players/${state.playerId}`);
+            await set(playerRef, {
+                name: state.playerName,
+                color: state.playerColor,
+                passedGen: false,
+                online: true,
+                order: existingPlayers,
+                isHost: state.isHost
+            });
+            
+            // Set up disconnect handler
+            onDisconnect(playerRef).update({ online: false });
+            
+            el.nameModal.classList.remove('active');
+            saveSession();
+            
+            if (state.isHost) {
+                initAudio();
+                document.body.classList.add('is-host');
+                el.hostOnlySection.style.display = 'block';
+                el.hostSoundSection.style.display = 'block';
+                el.timeSettingMini.style.display = 'flex';
+            }
+            
+            enterWaitingRoom();
+        }
+        
+        function enterWaitingRoom() {
+            showScreen('waitingScreen');
+            el.roomCodeDisplay.textContent = state.roomId;
+            el.roomCodeSmall.textContent = state.roomId;
+            el.timeValueMini.textContent = state.turnDuration;
+            generateQR(state.roomId);
+            
+            // Listen for room data
+            const roomRef = ref(db, `rooms/${state.roomId}`);
+            const unsubRoom = onValue(roomRef, (snapshot) => {
+                if (!snapshot.exists()) {
+                    alert('Pokój został zamknięty');
+                    leaveRoom();
+                    return;
+                }
+                
+                const data = snapshot.val();
+                state.players = data.players || {};
+                state.turnDuration = data.turnDuration || 45;
+                el.timeValueMini.textContent = state.turnDuration;
+                
+                updateWaitingPlayersList();
+                updateStartButton();
+                
+                // Check if game started
+                if (data.state === 'playing') {
+                    startGameListener();
+                }
+            });
+            unsubscribers.push(() => off(roomRef));
+            
+            if (state.isHost) {
+                el.startGameBtn.textContent = 'Rozpocznij grę';
+            } else {
+                el.startGameBtn.textContent = 'Czekam na hosta...';
+                el.startGameBtn.disabled = true;
+            }
+        }
+        
+        function updateWaitingPlayersList() {
+            const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
+            el.waitingPlayersList.innerHTML = players.map(([id, p]) => `
+                <div class="player-waiting-item ${!p.online ? 'offline' : ''}">
+                    <div class="player-waiting-color" style="background: ${COLOR_HEX[p.color]}"></div>
+                    <div class="player-waiting-name">${p.name}</div>
+                    ${p.isHost ? '<div class="player-waiting-host">Host</div>' : ''}
+                    ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
+                </div>
+            `).join('');
+        }
+        
+        function updateStartButton() {
+            if (!state.isHost) return;
+            const onlinePlayers = Object.values(state.players).filter(p => p.online).length;
+            el.startGameBtn.disabled = onlinePlayers < 2;
+            el.startGameBtn.textContent = onlinePlayers < 2 ? 'Minimum 2 graczy' : 'Rozpocznij grę';
+        }
+        
+        async function updateTurnDuration(delta) {
+            if (!state.isHost) return;
+            state.turnDuration = Math.max(15, Math.min(180, state.turnDuration + delta));
+            await update(ref(db, `rooms/${state.roomId}`), { turnDuration: state.turnDuration });
+        }
+        
+        async function startGame() {
+            if (!state.isHost) return;
+            
+            const players = Object.entries(state.players)
+                .filter(([id, p]) => p.online)
+                .sort((a, b) => a[1].order - b[1].order);
+            const playerIds = players.map(([id]) => id);
+            
+            await update(ref(db, `rooms/${state.roomId}`), {
+                state: 'playing',
+                generation: 1,
+                currentPlayerIndex: 0,
+                startPlayerIndex: 0,
+                playerOrder: playerIds,
+                turnStartTime: Date.now(),
+                turnDuration: state.turnDuration,
+                isPaused: false,
+                gameStartTime: Date.now()
+            });
+            
+            // Announce first player
+            const firstPlayer = players[0][1];
+            playTurnStart();
+            speak(firstPlayer.name);
+        }
+        
+        function startGameListener() {
+            showScreen('gameScreen');
+            requestWakeLock();
+            
+            // Clean up any existing intervals
+            if (state.localTimerInterval) clearInterval(state.localTimerInterval);
+            if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
+            
+            // Listen for game state changes
+            const roomRef = ref(db, `rooms/${state.roomId}`);
+            const unsubGame = onValue(roomRef, (snapshot) => {
+                if (!snapshot.exists()) {
+                    leaveRoom();
+                    return;
+                }
+                
+                const data = snapshot.val();
+                state.gameState = data;
+                state.players = data.players || {};
+                
+                if (data.state === 'playing') {
+                    updateGameUI(data);
+                } else if (data.state === 'waiting') {
+                    // Game ended, back to waiting room
+                    enterWaitingRoom();
+                }
+            });
+            unsubscribers.push(() => off(roomRef));
+            
+            // Start local timer loop (100ms updates)
+            state.localTimerInterval = setInterval(() => {
+                if (!state.gameState || state.gameState.isPaused) return;
+                
+                const now = Date.now();
+                const elapsed = (now - state.gameState.turnStartTime) / 1000;
+                const remaining = state.gameState.turnDuration - elapsed;
+                
+                updateTimerDisplay(remaining);
+                
+                // Host plays sounds at specific times
+                if (state.isHost) {
+                    const roundedRemaining = Math.floor(remaining);
+                    if (roundedRemaining === 5 && state.lastWarningTime !== 5) {
+                        playWarning();
+                        state.lastWarningTime = 5;
+                    } else if (roundedRemaining === 0 && state.lastWarningTime !== 0) {
+                        playTimeUp();
+                        state.lastWarningTime = 0;
+                    } else if (roundedRemaining !== 5 && roundedRemaining !== 0) {
+                        state.lastWarningTime = -1;
+                    }
+                }
+            }, 100);
+            
+            // Game elapsed timer
+            state.gameTimerInterval = setInterval(() => {
+                if (!state.gameState || !state.gameState.gameStartTime) return;
+                const elapsed = Math.floor((Date.now() - state.gameState.gameStartTime) / 1000);
+                el.gameTimer.textContent = formatGameTime(elapsed);
+            }, 1000);
+        }
+        
+        function updateTimerDisplay(remaining) {
+            el.timerText.textContent = formatTime(remaining);
+            
+            const progress = Math.min(1, Math.max(0, (state.gameState.turnDuration - remaining) / state.gameState.turnDuration));
+            const circumference = 2 * Math.PI * 130;
+            el.timerProgress.style.strokeDashoffset = circumference * (1 - progress);
+            
+            el.timerText.classList.toggle('overtime', remaining < 0);
+            el.timerText.classList.toggle('warning', remaining <= 5 && remaining > 0);
+            el.timerProgress.classList.toggle('overtime', remaining < 0);
+        }
+        
+        function updateGameUI(data) {
+            el.genNumber.textContent = data.generation || 1;
+            
+            const playerOrder = data.playerOrder || [];
+            const currentPlayerId = playerOrder[data.currentPlayerIndex];
+            const currentPlayer = data.players?.[currentPlayerId];
+            
+            if (currentPlayer) {
+                el.currentPlayerName.textContent = currentPlayer.name;
+                el.currentPlayerName.style.color = COLOR_HEX[currentPlayer.color];
+                
+                const isMyTurn = currentPlayerId === state.playerId;
+                el.currentPlayerLabel.textContent = isMyTurn ? 'Twoja tura!' : 'Tura gracza';
+                
+                // Pass button state
+                el.passBtn.disabled = !isMyTurn || data.isPaused;
+                el.passGenBtn.disabled = !isMyTurn || data.isPaused;
+                
+                // Update colors
+                const timerGradient = document.querySelector('#timerGradient');
+                if (timerGradient) {
+                    timerGradient.innerHTML = `<stop offset="0%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/><stop offset="100%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/>`;
+                }
+                el.passBtn.style.background = `linear-gradient(135deg, ${COLOR_HEX[currentPlayer.color]}, ${COLOR_HEX[currentPlayer.color]})`;
+                el.passBtn.style.boxShadow = `0 8px 32px ${COLOR_HEX[currentPlayer.color]}66`;
+            }
+            
+            // Players strip
+            const startIndex = data.startPlayerIndex || 0;
+            const orderedPlayers = [];
+            for (let i = 0; i < playerOrder.length; i++) {
+                const idx = (startIndex + i) % playerOrder.length;
+                const pid = playerOrder[idx];
+                const p = data.players?.[pid];
+                if (p) orderedPlayers.push({ id: pid, ...p, originalIndex: idx });
+            }
+            
+            el.playersStrip.innerHTML = orderedPlayers.map(p => {
+                let statusClass = '';
+                let statusText = '';
+                if (p.passedGen) { statusClass = 'passed-gen'; statusText = 'GEN'; }
+                else if (p.id === currentPlayerId) { statusClass = 'active'; }
+                if (!p.online) statusClass += ' offline';
+                
+                return `<div class="player-chip ${statusClass}">
+                    <div class="player-chip-dot" style="background: ${COLOR_HEX[p.color]}"></div>
+                    <span>${p.name}</span>
+                    ${statusText ? `<span class="player-chip-status">${statusText}</span>` : ''}
+                </div>`;
+            }).join('');
+            
+            // Admin overlay
+            if (data.isPaused) {
+                el.adminOverlay.classList.add('active');
+                el.overlayTitle.textContent = data.overlayTitle || 'Admin Time';
+                el.overlayText.textContent = data.overlayText || 'Gra wstrzymana';
+                el.resumeBtn.textContent = data.overlayButton || 'Wznów grę';
+            } else {
+                el.adminOverlay.classList.remove('active');
+            }
+            
+            // Next gen button visibility
+            const allPassed = playerOrder.every(pid => data.players?.[pid]?.passedGen);
+            el.nextGenBtn.style.display = allPassed && state.isHost ? 'block' : 'none';
+            
+            // Admin time button
+            el.adminTimeBtn.classList.toggle('active', data.isPaused);
+        }
+        
+        // =============================================
+        // GAME ACTIONS
+        // =============================================
+        async function pass() {
+            if (!state.gameState) return;
+            
+            const playerOrder = state.gameState.playerOrder;
+            const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
+            
+            if (currentPlayerId !== state.playerId) return;
+            
+            // Find next active player
+            let nextIndex = state.gameState.currentPlayerIndex;
+            let attempts = 0;
+            do {
+                nextIndex = (nextIndex + 1) % playerOrder.length;
+                attempts++;
+            } while (state.players[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
+            
+            const nextPlayerId = playerOrder[nextIndex];
+            const nextPlayer = state.players[nextPlayerId];
+            
+            await update(ref(db, `rooms/${state.roomId}`), {
+                currentPlayerIndex: nextIndex,
+                turnStartTime: Date.now()
+            });
+            
+            if (state.isHost) {
+                playTurnStart();
+                speak(nextPlayer?.name);
+            }
+        }
+        
+        async function passGen() {
+            if (!state.gameState) return;
+            
+            const playerOrder = state.gameState.playerOrder;
+            const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
+            
+            if (currentPlayerId !== state.playerId) return;
+            
+            // Mark as passed
+            await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), {
+                passedGen: true
+            });
+            
+            // Check if all passed
+            const updatedPlayers = { ...state.players };
+            updatedPlayers[state.playerId].passedGen = true;
+            
+            const allPassed = playerOrder.every(pid => updatedPlayers[pid]?.passedGen);
+            
+            if (allPassed) {
+                // End of generation
+                if (state.isHost) {
+                    speak('Koniec pokolenia ' + state.gameState.generation);
+                }
+                
+                await update(ref(db, `rooms/${state.roomId}`), {
+                    isPaused: true,
+                    overlayTitle: 'Koniec pokolenia ' + state.gameState.generation,
+                    overlayText: 'Wszyscy spasowali',
+                    overlayButton: '🚀 Następne Pokolenie'
+                });
+            } else {
+                // Find next active player
+                let nextIndex = state.gameState.currentPlayerIndex;
+                let attempts = 0;
+                do {
+                    nextIndex = (nextIndex + 1) % playerOrder.length;
+                    attempts++;
+                } while (updatedPlayers[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
+                
+                const nextPlayer = state.players[playerOrder[nextIndex]];
+                
+                if (state.isHost) {
+                    speak(state.playerName + ' spasował');
+                    setTimeout(() => {
+                        playTurnStart();
+                        speak(nextPlayer?.name);
+                    }, 1200);
+                }
+                
+                await update(ref(db, `rooms/${state.roomId}`), {
+                    currentPlayerIndex: nextIndex,
+                    turnStartTime: Date.now() + (state.isHost ? 1200 : 0)
+                });
+            }
+        }
+        
+        async function nextGeneration() {
+            if (!state.isHost || !state.gameState) return;
+            
+            const playerOrder = state.gameState.playerOrder;
+            const newStartIndex = (state.gameState.startPlayerIndex + 1) % playerOrder.length;
+            
+            // Reset all passedGen
+            const updates = {
+                generation: state.gameState.generation + 1,
+                currentPlayerIndex: newStartIndex,
+                startPlayerIndex: newStartIndex,
+                turnStartTime: Date.now() + 1500,
+                isPaused: false
+            };
+            
+            playerOrder.forEach(pid => {
+                updates[`players/${pid}/passedGen`] = false;
+            });
+            
+            await update(ref(db, `rooms/${state.roomId}`), updates);
+            
+            speak('Pokolenie ' + (state.gameState.generation + 1));
+            setTimeout(() => {
+                playTurnStart();
+                speak(state.players[playerOrder[newStartIndex]]?.name);
+            }, 1500);
+        }
+        
+        async function toggleAdminTime() {
+            if (!state.isHost || !state.gameState) return;
+            
+            const isPaused = !state.gameState.isPaused;
+            
+            if (isPaused) {
+                speak('Admin time');
+                await update(ref(db, `rooms/${state.roomId}`), {
+                    isPaused: true,
+                    pausedAt: Date.now(),
+                    overlayTitle: 'Admin Time',
+                    overlayText: 'Gra wstrzymana',
+                    overlayButton: 'Wznów grę'
+                });
+            } else {
+                // Adjust turnStartTime
+                const pauseDuration = Date.now() - (state.gameState.pausedAt || Date.now());
+                await update(ref(db, `rooms/${state.roomId}`), {
+                    isPaused: false,
+                    turnStartTime: state.gameState.turnStartTime + pauseDuration
+                });
+            }
+        }
+        
+        async function forceNextTurn() {
+            if (!state.isHost || !state.gameState) return;
+            
+            const playerOrder = state.gameState.playerOrder;
+            let nextIndex = state.gameState.currentPlayerIndex;
+            let attempts = 0;
+            do {
+                nextIndex = (nextIndex + 1) % playerOrder.length;
+                attempts++;
+            } while (state.players[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
+            
+            const nextPlayer = state.players[playerOrder[nextIndex]];
+            
+            await update(ref(db, `rooms/${state.roomId}`), {
+                currentPlayerIndex: nextIndex,
+                turnStartTime: Date.now()
+            });
+            
+            playTurnStart();
+            speak(nextPlayer?.name);
+        }
+        
+        async function leaveRoom() {
+            // Clean up listeners
+            unsubscribers.forEach(unsub => unsub());
+            unsubscribers = [];
+            
+            // Clear intervals
+            if (state.localTimerInterval) clearInterval(state.localTimerInterval);
+            if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
+            
+            // If we're in a room, update our status
+            if (state.roomId && state.playerId) {
+                try {
+                    if (state.isHost) {
+                        // Host leaving = delete room
+                        await remove(ref(db, `rooms/${state.roomId}`));
+                    } else {
+                        // Player leaving = just remove player
+                        await remove(ref(db, `rooms/${state.roomId}/players/${state.playerId}`));
+                    }
+                } catch(e) {}
+            }
+            
+            // Reset state
+            state.roomId = null;
+            state.playerId = null;
+            state.isHost = false;
+            state.gameState = null;
+            state.players = {};
+            state.lastWarningTime = -1;
+            
+            clearSession();
+            document.body.classList.remove('is-host');
+            el.hostOnlySection.style.display = 'none';
+            el.hostSoundSection.style.display = 'none';
+            el.timeSettingMini.style.display = 'none';
+            showScreen('lobbyScreen');
+            el.joinForm.classList.remove('active');
+        }
+        
+        // =============================================
+        // HOLD FOR PASS GEN
+        // =============================================
+        function startHold() {
+            if (el.passGenBtn.disabled) return;
+            state.holdProgress = 0;
+            const progressFill = el.passGenBtn.querySelector('.progress-fill');
+            state.holdTimeout = setInterval(() => {
+                state.holdProgress += 10;
+                progressFill.style.width = state.holdProgress + '%';
+                if (state.holdProgress >= 100) endHold(true);
+            }, 50);
+        }
+        
+        function endHold(confirmed = false) {
+            if (state.holdTimeout) {
+                clearInterval(state.holdTimeout);
+                state.holdTimeout = null;
+            }
+            el.passGenBtn.querySelector('.progress-fill').style.width = '0%';
+            state.holdProgress = 0;
+            if (confirmed) passGen();
+        }
+        
+        // =============================================
+        // EVENT LISTENERS
+        // =============================================
+        el.createRoomBtn.addEventListener('click', createRoom);
+        
+        el.showJoinBtn.addEventListener('click', () => {
+            el.joinForm.classList.toggle('active');
+            el.joinCodeInput.focus();
+        });
+        
+        el.joinCodeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+        });
+        
+        el.joinRoomBtn.addEventListener('click', () => {
+            const code = el.joinCodeInput.value;
+            if (code.length === 4) joinRoom(code);
+        });
+        
+        el.joinCodeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && el.joinCodeInput.value.length === 4) joinRoom(el.joinCodeInput.value);
+        });
+        
+        el.colorPicker.addEventListener('click', (e) => {
+            const option = e.target.closest('.color-option');
+            if (option) {
+                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                state.playerColor = option.dataset.color;
+            }
+        });
+        
+        el.confirmNameBtn.addEventListener('click', confirmPlayer);
+        el.playerNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') confirmPlayer();
+        });
+        
+        el.timeUpMini.addEventListener('click', () => updateTurnDuration(5));
+        el.timeDownMini.addEventListener('click', () => updateTurnDuration(-5));
+        
+        el.startGameBtn.addEventListener('click', startGame);
+        el.leaveRoomBtn.addEventListener('click', leaveRoom);
+        
+        el.passBtn.addEventListener('click', pass);
+        
+        el.passGenBtn.addEventListener('mousedown', startHold);
+        el.passGenBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(); }, { passive: false });
+        el.passGenBtn.addEventListener('mouseup', () => endHold(false));
+        el.passGenBtn.addEventListener('mouseleave', () => endHold(false));
+        el.passGenBtn.addEventListener('touchend', () => endHold(false));
+        el.passGenBtn.addEventListener('touchcancel', () => endHold(false));
+        
+        el.adminTimeBtn.addEventListener('click', toggleAdminTime);
+        
+        el.resumeBtn.addEventListener('click', () => {
+            if (state.gameState?.overlayButton?.includes('Pokolenie')) {
+                nextGeneration();
+            } else {
+                toggleAdminTime();
+            }
+        });
+        
+        el.menuBtn.addEventListener('click', () => {
+            el.hostPanel.classList.add('open');
+            el.hostPanelBackdrop.classList.add('open');
+        });
+        
+        el.closePanelBtn.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+        });
+        
+        el.hostPanelBackdrop.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+        });
+        
+        el.nextGenBtn.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+            nextGeneration();
+        });
+        
+        el.forceNextBtn.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+            forceNextTurn();
+        });
+        
+        el.hostAdminBtn.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+            toggleAdminTime();
+        });
+        
+        el.muteBtn.addEventListener('click', () => {
+            state.isMuted = !state.isMuted;
+            el.muteBtn.textContent = state.isMuted ? '🔇 Włącz dźwięki' : '🔊 Wycisz dźwięki';
+        });
+        
+        el.leaveGameBtn.addEventListener('click', () => {
+            if (confirm(state.isHost ? 'Jako host, opuszczenie gry zamknie pokój dla wszystkich. Kontynuować?' : 'Czy na pewno chcesz opuścić grę?')) {
+                el.hostPanel.classList.remove('open');
+                el.hostPanelBackdrop.classList.remove('open');
+                leaveRoom();
+            }
+        });
+        
+        // Prevent double-tap zoom
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) e.preventDefault();
+            lastTouchEnd = now;
+        }, false);
+        
+        // =============================================
+        // INITIALIZATION
+        // =============================================
+        async function init() {
+            requestWakeLock();
+            
+            // Check URL for room code
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomCode = urlParams.get('room');
+            
+            if (roomCode) {
+                el.joinCodeInput.value = roomCode;
+                el.joinForm.classList.add('active');
+            }
+            
+            // Check for saved session (auto-reconnect)
+            const session = loadSession();
+            if (session && session.roomId) {
+                try {
+                    const roomRef = ref(db, `rooms/${session.roomId}`);
+                    const snapshot = await get(roomRef);
+                    
+                    if (snapshot.exists()) {
+                        const roomData = snapshot.val();
+                        if (roomData.players?.[session.playerId]) {
+                            // Reconnect
+                            state.roomId = session.roomId;
+                            state.playerId = session.playerId;
+                            state.playerName = session.playerName;
+                            state.playerColor = session.playerColor;
+                            state.isHost = session.isHost;
+                            state.turnDuration = roomData.turnDuration || 45;
+                            
+                            if (state.isHost) {
+                                initAudio();
+                                document.body.classList.add('is-host');
+                                el.hostOnlySection.style.display = 'block';
+                                el.hostSoundSection.style.display = 'block';
+                                el.timeSettingMini.style.display = 'flex';
+                            }
+                            
+                            // Update online status
+                            await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), { online: true });
+                            onDisconnect(ref(db, `rooms/${state.roomId}/players/${state.playerId}`)).update({ online: false });
+                            
+                            if (roomData.state === 'playing') {
+                                startGameListener();
+                            } else {
+                                enterWaitingRoom();
+                            }
+                            return;
+                        }
+                    }
+                } catch(e) {
+                    console.log('Reconnect failed:', e);
+                }
+                clearSession();
+            }
+            
+            // Load voices
+            if ('speechSynthesis' in window) {
+                speechSynthesis.getVoices();
+                speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
