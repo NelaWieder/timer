@@ -224,6 +224,8 @@
             // KLUCZOWE: używamy turnStartTime jako unikalnego markera tury
             lastAnnouncedTurnTime: 0,
             lastAnnouncedGeneration: 0,
+            // If we announce "X spasował", defer the next "turn start" speech to avoid overlap
+            deferNextTurnAnnouncementUntil: 0,
             warningPlayed: false,
             timeUpPlayed: false
         };
@@ -324,9 +326,11 @@
                     speechSynthesis.cancel();
                     
                     // Method 1: Silent utterance (works on most platforms)
-                    const utterance = new SpeechSynthesisUtterance(' ');
-                    utterance.volume = 0.01; // Nearly silent
-                    utterance.rate = 10; // Fast
+                    // NOTE: Some Android builds won't start synthesis for whitespace-only utterances.
+                    // Use a short token but keep volume effectively silent.
+                    const utterance = new SpeechSynthesisUtterance('a');
+                    utterance.volume = 0.0; // silent
+                    utterance.rate = 1.0;
                     utterance.lang = 'pl-PL';
                     
                     // Platform strategy:
@@ -396,9 +400,8 @@
                 
                 // ALWAYS cancel before new speech (critical for iOS!)
                 speechSynthesis.cancel();
-                
-                // Small delay after cancel (helps iOS)
-                setTimeout(() => {
+
+                const speakNow = () => {
                     try {
                         // Voice list can be empty / still loading on mobile; try again right before speaking.
                         if (!this.voicesLoaded) this.loadVoices();
@@ -408,40 +411,37 @@
                         utterance.rate = 1.0;
                         utterance.pitch = 0.95;
                         utterance.volume = 1.0;
-                        
+
                         // Voice selection strategy by platform
                         if (platform === 'ios') {
                             // iOS: DON'T set voice object - just use lang
-                            // Setting specific voice on iOS often breaks TTS
                             console.log('[TTS] iOS mode - using lang only');
                         } else if (platform === 'android') {
-                            // ANDROID (CRITICAL FIX):
-                            // Chrome on Android often fails (silent) when a SpeechSynthesisVoice object is assigned.
-                            // Force system default voice by explicitly clearing voice and using only lang.
+                            // ANDROID (CRITICAL FIX + HARD FALLBACK):
+                            // Always force system default voice; do NOT assign any SpeechSynthesisVoice object.
                             utterance.voice = null;
                             utterance.lang = 'pl-PL';
                             console.log('[TTS] Android mode - forcing system default voice');
                         } else {
                             // Desktop: Use best voice if available
                             if (this.polishVoice) {
-                                // Avoid stale voice object references by re-resolving from current getVoices()
                                 const resolved = speechSynthesis.getVoices().find(v => v.name === this.polishVoice.name) || null;
                                 utterance.voice = resolved;
                             }
                             console.log('[TTS] Desktop mode - voice:', utterance.voice?.name || 'default');
                         }
-                        
+
                         utterance.onstart = () => {
                             console.log('[TTS] ✓ Speech started:', text);
                         };
-                        
+
                         utterance.onend = () => {
                             console.log('[TTS] ✓ Speech ended:', text);
                         };
-                        
+
                         utterance.onerror = (e) => {
                             console.error('[TTS] ✗ Speech error:', e.error, 'for text:', text);
-                            
+
                             // Retry once on error (except 'interrupted' which is normal)
                             if (e.error !== 'interrupted' && e.error !== 'canceled') {
                                 console.log('[TTS] Retrying speech...');
@@ -451,23 +451,42 @@
                                     const retry = new SpeechSynthesisUtterance(text);
                                     retry.lang = 'pl-PL';
                                     retry.rate = 1.0;
+                                    retry.pitch = 0.95;
+                                    retry.volume = 1.0;
                                     if (platform === 'android') {
                                         retry.voice = null;
                                         retry.lang = 'pl-PL';
                                     }
+                                    if (speechSynthesis.paused) speechSynthesis.resume();
                                     speechSynthesis.speak(retry);
-                                }, 100);
+                                }, 250);
                             }
                         };
-                        
+
                         // Chrome bug workaround: resume if paused
-                        if (speechSynthesis.paused) {
-                            speechSynthesis.resume();
-                        }
-                        
+                        if (speechSynthesis.paused) speechSynthesis.resume();
+
                         speechSynthesis.speak(utterance);
-                        
-                        // Chrome bug: speech can stop after ~15s, this helps
+
+                        // HARD ANDROID FALLBACK: if it didn't start, try again shortly with voice cleared
+                        if (platform === 'android') {
+                            setTimeout(() => {
+                                if (!speechSynthesis.speaking) {
+                                    console.warn('[TTS] Android: not speaking after speak(), forcing retry');
+                                    speechSynthesis.cancel();
+                                    const retry2 = new SpeechSynthesisUtterance(text);
+                                    retry2.voice = null;
+                                    retry2.lang = 'pl-PL';
+                                    retry2.rate = 1.0;
+                                    retry2.pitch = 0.95;
+                                    retry2.volume = 1.0;
+                                    if (speechSynthesis.paused) speechSynthesis.resume();
+                                    speechSynthesis.speak(retry2);
+                                }
+                            }, 300);
+                        }
+
+                        // Desktop-only: watchdog resume
                         if (platform === 'desktop') {
                             setTimeout(() => {
                                 if (speechSynthesis.speaking && speechSynthesis.paused) {
@@ -475,11 +494,22 @@
                                 }
                             }, 5000);
                         }
-                        
                     } catch (e) {
                         console.error('[TTS] Speak exception:', e);
                     }
-                }, platform === 'ios' ? 100 : 50); // Longer delay for iOS
+                };
+
+                // Platform timing:
+                // - iOS: delay helps after cancel()
+                // - Android: avoid setTimeout delay; use rAF to let cancel settle without losing momentum
+                // - Desktop: small delay is fine
+                if (platform === 'ios') {
+                    setTimeout(speakNow, 100);
+                } else if (platform === 'android') {
+                    requestAnimationFrame(speakNow);
+                } else {
+                    setTimeout(speakNow, 50);
+                }
             },
             
             // Stop all speech
@@ -959,6 +989,59 @@
                 
                 if (data.state === 'playing') {
                     updateGameUI(data);
+
+                    // =============================================
+                    // Host-only: detect Pass Gen changes from ANY player
+                    // and announce accordingly ("X spasował" or "Koniec pokolenia N")
+                    // =============================================
+                    if (state.isHost && prevGameState && prevGameState.players && data.players && !data.isPaused) {
+                        const playerOrder = data.playerOrder || [];
+                        const newlyPassed = playerOrder.filter(pid => {
+                            const before = !!prevGameState.players?.[pid]?.passedGen;
+                            const after = !!data.players?.[pid]?.passedGen;
+                            return !before && after;
+                        });
+
+                        if (newlyPassed.length > 0) {
+                            const activeRemaining = playerOrder.filter(pid => !data.players?.[pid]?.passedGen).length;
+
+                            if (activeRemaining === 0) {
+                                // Last active player passed -> end generation (priority)
+                                TTS.speak(`Koniec pokolenia ${data.generation || 1}`);
+                                // Host also pauses the game for end-of-generation overlay
+                                update(ref(db, `rooms/${state.roomId}`), {
+                                    isPaused: true,
+                                    overlayTitle: 'Koniec pokolenia ' + (data.generation || 1),
+                                    overlayText: 'Wszyscy spasowali',
+                                    overlayButton: '🚀 Następne Pokolenie'
+                                }).catch(() => {});
+                            } else {
+                                // Announce each newly passed player (usually one)
+                                newlyPassed.forEach(pid => {
+                                    const p = data.players?.[pid];
+                                    if (p?.name) {
+                                        TTS.speak(`${p.name} spasował`);
+                                    }
+                                });
+                                // Defer the next "turn start" announcement to avoid overlap
+                                state.deferNextTurnAnnouncementUntil = Date.now() + 1400;
+
+                                // Advance to next active player (host authoritative)
+                                let nextIndex = data.currentPlayerIndex ?? 0;
+                                let attempts = 0;
+                                do {
+                                    nextIndex = (nextIndex + 1) % playerOrder.length;
+                                    attempts++;
+                                } while (data.players?.[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
+
+                                const newTurnTime = Date.now();
+                                update(ref(db, `rooms/${state.roomId}`), {
+                                    currentPlayerIndex: nextIndex,
+                                    turnStartTime: newTurnTime
+                                }).catch(() => {});
+                            }
+                        }
+                    }
                     
                     // =============================================
                     // KLUCZOWA LOGIKA: Wykrywanie zmiany tury przez turnStartTime
@@ -986,11 +1069,16 @@
                                 state.warningPlayed = false;
                                 state.timeUpPlayed = false;
                                 
-                                // Announce player (with small delay to not overlap with other sounds)
+                                // Announce player (delay can be extended if we just announced "X spasował")
+                                const baseDelay = 100;
+                                const now = Date.now();
+                                const extraDelay = (state.deferNextTurnAnnouncementUntil && now < state.deferNextTurnAnnouncementUntil)
+                                    ? (state.deferNextTurnAnnouncementUntil - now)
+                                    : 0;
                                 setTimeout(() => {
                                     playTurnStart();
                                     TTS.speak(currentPlayer.name);
-                                }, 100);
+                                }, baseDelay + extraDelay);
                             }
                             
                             // Mark as announced
@@ -1169,55 +1257,7 @@
             await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), {
                 passedGen: true
             });
-            
-            // Check remaining active players
-            const updatedPlayers = { ...state.players };
-            updatedPlayers[state.playerId].passedGen = true;
-            
-            const activePlayers = playerOrder.filter(pid => !updatedPlayers[pid]?.passedGen);
-            const allPassed = activePlayers.length === 0;
-            
-            console.log('[PASS GEN] Player:', state.playerName, 'Active remaining:', activePlayers.length);
-            
-            if (allPassed) {
-                // SCENARIO B: Last player - end generation
-                if (state.isHost) {
-                    const genNum = state.gameState.generation;
-                    // Requirement: speak the numeric generation (not ordinal)
-                    TTS.speak(`Koniec pokolenia ${genNum}`);
-                }
-                
-                await update(ref(db, `rooms/${state.roomId}`), {
-                    isPaused: true,
-                    overlayTitle: 'Koniec pokolenia ' + state.gameState.generation,
-                    overlayText: 'Wszyscy spasowali',
-                    overlayButton: '🚀 Następne Pokolenie'
-                });
-            } else {
-                // SCENARIO A: Others still active
-                let nextIndex = state.gameState.currentPlayerIndex;
-                let attempts = 0;
-                do {
-                    nextIndex = (nextIndex + 1) % playerOrder.length;
-                    attempts++;
-                } while (updatedPlayers[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
-                
-                const nextPlayer = state.players[playerOrder[nextIndex]];
-                const newTurnTime = Date.now() + 1800; // Delay for speech
-                
-                if (state.isHost) {
-                    // Announce who passed
-                    TTS.speak(`${state.playerName} spasował`);
-                    
-                    // Mark turn time so the listener will announce next player
-                    state.lastAnnouncedTurnTime = newTurnTime;
-                }
-                
-                await update(ref(db, `rooms/${state.roomId}`), {
-                    currentPlayerIndex: nextIndex,
-                    turnStartTime: newTurnTime
-                });
-            }
+            // Room flow (advancing turn / ending generation) is handled by the HOST via the Firebase listener.
         }
         
         // NEXT GENERATION
