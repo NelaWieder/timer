@@ -31,7 +31,9 @@
     
     <!-- LOBBY SCREEN -->
     <div class="screen lobby-screen active" id="lobbyScreen">
-        <div class="mars-planet-lobby"></div>
+        <div class="mars-planet-lobby">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/0/02/OSIRIS_Mars_true_color.jpg" alt="Mars">
+        </div>
         <div class="lobby-logo">
             <h1>Mars Timer</h1>
             <p>Multiplayer</p>
@@ -43,7 +45,11 @@
         </div>
         <div class="join-form" id="joinForm">
             <input type="text" class="join-input" id="joinCodeInput" placeholder="KOD" maxlength="4" autocomplete="off">
-            <button class="lobby-btn primary" id="joinRoomBtn">Dołącz</button>
+            <div class="join-buttons">
+                <button class="lobby-btn primary" id="joinRoomBtn">Dołącz</button>
+                <button class="lobby-btn secondary" id="scanQRBtn">Skanuj QR</button>
+            </div>
+            <input type="file" id="qrFileInput" accept="image/*" capture="environment" style="display: none;">
         </div>
     </div>
     
@@ -52,6 +58,11 @@
         <div class="name-modal-content">
             <h2>Jak masz na imię?</h2>
             <p>Wybierz swój kolor</p>
+            <div class="preset-players">
+                <button class="preset-player-btn" data-name="Przemek" data-color="blue">Przemek</button>
+                <button class="preset-player-btn" data-name="Karol" data-color="red">Karol</button>
+                <button class="preset-player-btn" data-name="Benek" data-color="green">Benek</button>
+            </div>
             <input type="text" class="name-input" id="playerNameInput" placeholder="Twoje imię" maxlength="12">
             <div class="color-picker" id="colorPicker">
                 <div class="color-option blue selected" data-color="blue"></div>
@@ -125,7 +136,7 @@
             <button class="pass-btn" id="passBtn">PASS</button>
             <div class="secondary-actions">
                 <button class="action-btn pass-gen" id="passGenBtn"><div class="progress-fill"></div><span>Pass Gen</span></button>
-                <button class="action-btn admin-time host-only" id="adminTimeBtn">Admin Time</button>
+                <button class="action-btn admin-time" id="adminTimeBtn">Admin Time</button>
             </div>
         </div>
         <div class="admin-overlay" id="adminOverlay">
@@ -166,6 +177,7 @@
 
     <!-- QRCode Library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     
     <!-- Firebase -->
     <script type="module">
@@ -733,6 +745,8 @@
             joinForm: $('joinForm'),
             joinCodeInput: $('joinCodeInput'),
             joinRoomBtn: $('joinRoomBtn'),
+            scanQRBtn: $('scanQRBtn'),
+            qrFileInput: $('qrFileInput'),
             playerNameInput: $('playerNameInput'),
             colorPicker: $('colorPicker'),
             confirmNameBtn: $('confirmNameBtn'),
@@ -967,6 +981,64 @@
             }
         }
         
+        async function scanQRCode() {
+            el.qrFileInput.click();
+        }
+        
+        async function handleQRFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                if (typeof jsQR !== 'undefined') {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code) {
+                        try {
+                            const url = new URL(code.data);
+                            const roomCode = url.searchParams.get('room');
+                            if (roomCode) {
+                                el.joinCodeInput.value = roomCode.toUpperCase();
+                                joinRoom(roomCode.toUpperCase());
+                            } else {
+                                // Try to extract code directly if it's just the code
+                                const match = code.data.match(/([A-Z]{4})/);
+                                if (match) {
+                                    el.joinCodeInput.value = match[1];
+                                    joinRoom(match[1]);
+                                } else {
+                                    alert('Nie znaleziono kodu pokoju w QR kodzie');
+                                }
+                            }
+                        } catch (e) {
+                            // If URL parsing fails, try to extract code directly
+                            const match = code.data.match(/([A-Z]{4})/);
+                            if (match) {
+                                el.joinCodeInput.value = match[1];
+                                joinRoom(match[1]);
+                            } else {
+                                alert('Nie znaleziono kodu pokoju w QR kodzie');
+                            }
+                        }
+                    } else {
+                        alert('Nie udało się odczytać QR kodu');
+                    }
+                } else {
+                    alert('Biblioteka QR nie jest załadowana');
+                }
+            };
+            img.src = URL.createObjectURL(file);
+            el.qrFileInput.value = '';
+        }
+        
         // =============================================
         // FIREBASE: ROOM MANAGEMENT
         // =============================================
@@ -1103,14 +1175,90 @@
         
         function updateWaitingPlayersList() {
             const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
-            el.waitingPlayersList.innerHTML = players.map(([id, p]) => `
-                <div class="player-waiting-item ${!p.online ? 'offline' : ''}">
+            const isHost = state.isHost;
+            const canReorder = isHost && !state.gameState; // Only host can reorder before game starts
+            
+            el.waitingPlayersList.innerHTML = players.map(([id, p], index) => `
+                <div class="player-waiting-item ${!p.online ? 'offline' : ''} ${canReorder ? 'draggable' : ''}" 
+                     data-player-id="${id}" 
+                     draggable="${canReorder ? 'true' : 'false'}">
+                    ${canReorder ? '<div class="drag-handle">☰</div>' : ''}
                     <div class="player-waiting-color" style="background: ${COLOR_HEX[p.color]}"></div>
                     <div class="player-waiting-name">${p.name}</div>
                     ${p.isHost ? '<div class="player-waiting-host">Host</div>' : ''}
                     ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
                 </div>
             `).join('');
+            
+            // Setup drag & drop for host
+            if (canReorder) {
+                setupPlayerDragDrop();
+            }
+        }
+        
+        function setupPlayerDragDrop() {
+            const items = el.waitingPlayersList.querySelectorAll('.draggable');
+            let draggedElement = null;
+            
+            items.forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    draggedElement = item;
+                    item.style.opacity = '0.5';
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                
+                item.addEventListener('dragend', () => {
+                    item.style.opacity = '';
+                    draggedElement = null;
+                });
+                
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    
+                    const afterElement = getDragAfterElement(el.waitingPlayersList, e.clientY);
+                    if (afterElement == null) {
+                        el.waitingPlayersList.appendChild(draggedElement);
+                    } else {
+                        el.waitingPlayersList.insertBefore(draggedElement, afterElement);
+                    }
+                });
+                
+                item.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    
+                    if (!draggedElement) return;
+                    
+                    const players = Array.from(el.waitingPlayersList.querySelectorAll('.player-waiting-item'));
+                    const newOrder = players.map((item, index) => ({
+                        id: item.dataset.playerId,
+                        order: index
+                    }));
+                    
+                    // Update order in Firebase
+                    const updates = {};
+                    newOrder.forEach(({ id, order }) => {
+                        updates[`players/${id}/order`] = order;
+                    });
+                    
+                    await update(ref(db, `rooms/${state.roomId}`), updates);
+                });
+            });
+        }
+        
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+            
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
         
         function updateStartButton() {
@@ -1393,6 +1541,10 @@
                 el.passBtn.disabled = !isMyTurn || data.isPaused;
                 el.passGenBtn.disabled = !isMyTurn || data.isPaused;
                 
+                // Show admin time button for host OR current player during their turn
+                el.adminTimeBtn.style.display = (state.isHost || isMyTurn) ? 'flex' : 'none';
+                el.adminTimeBtn.disabled = data.isPaused ? false : (!state.isHost && !isMyTurn);
+                
                 const timerGradient = document.querySelector('#timerGradient');
                 if (timerGradient) {
                     timerGradient.innerHTML = `<stop offset="0%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/><stop offset="100%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/>`;
@@ -1538,7 +1690,14 @@
         
         // ADMIN TIME
         async function toggleAdminTime() {
-            if (!state.isHost || !state.gameState) return;
+            if (!state.gameState) return;
+            
+            // Allow admin time if: host OR current player during their turn
+            const playerOrder = state.gameState.playerOrder;
+            const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
+            const isCurrentPlayer = currentPlayerId === state.playerId;
+            
+            if (!state.isHost && !isCurrentPlayer) return;
             
             const isPaused = !state.gameState.isPaused;
             
@@ -1554,7 +1713,9 @@
                     overlayButton: 'Wznów grę'
                 });
             } else {
-                // Resuming
+                // Resuming - only host can resume
+                if (!state.isHost) return;
+                
                 const pauseDuration = Date.now() - (state.gameState.pausedAt || Date.now());
                 const newTurnTime = state.gameState.turnStartTime + pauseDuration;
                 
@@ -1676,8 +1837,24 @@
             if (code.length === 4) joinRoom(code);
         });
         
+        el.scanQRBtn.addEventListener('click', scanQRCode);
+        el.qrFileInput.addEventListener('change', handleQRFile);
+        
         el.joinCodeInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && el.joinCodeInput.value.length === 4) joinRoom(el.joinCodeInput.value);
+        });
+        
+        // Preset players
+        document.querySelectorAll('.preset-player-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const name = btn.dataset.name;
+                const color = btn.dataset.color;
+                el.playerNameInput.value = name;
+                document.querySelectorAll('.color-option').forEach(o => {
+                    o.classList.toggle('selected', o.dataset.color === color);
+                });
+                state.playerColor = color;
+            });
         });
         
         el.colorPicker.addEventListener('click', (e) => {
