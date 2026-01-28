@@ -317,6 +317,9 @@
                 const platform = this.getPlatform();
                 
                 try {
+                    // Try to load voices right before unlock (mobile race-condition helper)
+                    this.loadVoices();
+
                     // Cancel any pending speech
                     speechSynthesis.cancel();
                     
@@ -326,9 +329,17 @@
                     utterance.rate = 10; // Fast
                     utterance.lang = 'pl-PL';
                     
-                    // Don't set voice on iOS - let it use default
-                    if (platform !== 'ios' && this.polishVoice) {
-                        utterance.voice = this.polishVoice;
+                    // Platform strategy:
+                    // - iOS: never assign a voice object (Safari can break)
+                    // - Android: force system default (Chrome often goes silent when a voice object is assigned)
+                    // - Desktop: assign a preferred PL voice if available
+                    if (platform === 'android') {
+                        utterance.voice = null;
+                        utterance.lang = 'pl-PL';
+                    } else if (platform === 'desktop' && this.polishVoice) {
+                        // Re-resolve by name to avoid stale voice object references
+                        const resolved = speechSynthesis.getVoices().find(v => v.name === this.polishVoice.name) || null;
+                        utterance.voice = resolved;
                     }
                     
                     return new Promise((resolve) => {
@@ -389,6 +400,9 @@
                 // Small delay after cancel (helps iOS)
                 setTimeout(() => {
                     try {
+                        // Voice list can be empty / still loading on mobile; try again right before speaking.
+                        if (!this.voicesLoaded) this.loadVoices();
+
                         const utterance = new SpeechSynthesisUtterance(text);
                         utterance.lang = 'pl-PL';
                         utterance.rate = 1.0;
@@ -401,15 +415,18 @@
                             // Setting specific voice on iOS often breaks TTS
                             console.log('[TTS] iOS mode - using lang only');
                         } else if (platform === 'android') {
-                            // Android: Try Polish voice, fallback to lang
-                            if (this.polishVoice) {
-                                utterance.voice = this.polishVoice;
-                            }
-                            console.log('[TTS] Android mode - voice:', utterance.voice?.name || 'default');
+                            // ANDROID (CRITICAL FIX):
+                            // Chrome on Android often fails (silent) when a SpeechSynthesisVoice object is assigned.
+                            // Force system default voice by explicitly clearing voice and using only lang.
+                            utterance.voice = null;
+                            utterance.lang = 'pl-PL';
+                            console.log('[TTS] Android mode - forcing system default voice');
                         } else {
                             // Desktop: Use best voice if available
                             if (this.polishVoice) {
-                                utterance.voice = this.polishVoice;
+                                // Avoid stale voice object references by re-resolving from current getVoices()
+                                const resolved = speechSynthesis.getVoices().find(v => v.name === this.polishVoice.name) || null;
+                                utterance.voice = resolved;
                             }
                             console.log('[TTS] Desktop mode - voice:', utterance.voice?.name || 'default');
                         }
@@ -429,9 +446,15 @@
                             if (e.error !== 'interrupted' && e.error !== 'canceled') {
                                 console.log('[TTS] Retrying speech...');
                                 setTimeout(() => {
+                                    // Always cancel before a new utterance to avoid queue buildup
+                                    speechSynthesis.cancel();
                                     const retry = new SpeechSynthesisUtterance(text);
                                     retry.lang = 'pl-PL';
                                     retry.rate = 1.0;
+                                    if (platform === 'android') {
+                                        retry.voice = null;
+                                        retry.lang = 'pl-PL';
+                                    }
                                     speechSynthesis.speak(retry);
                                 }, 100);
                             }
@@ -907,7 +930,7 @@
             const firstPlayer = players[0][1];
             console.log('[GAME] Starting game, first player:', firstPlayer.name);
             playTurnStart();
-            TTS.speak(firstPlayer.name);
+            TTS.speak(`Tura: ${firstPlayer.name}`);
         }
         
         function startGameListener() {
@@ -1160,8 +1183,8 @@
                 // SCENARIO B: Last player - end generation
                 if (state.isHost) {
                     const genNum = state.gameState.generation;
-                    const ordinal = getPolishOrdinal(genNum);
-                    TTS.speak(`Koniec pokolenia ${ordinal}`);
+                    // Requirement: speak the numeric generation (not ordinal)
+                    TTS.speak(`Koniec pokolenia ${genNum}`);
                 }
                 
                 await update(ref(db, `rooms/${state.roomId}`), {
