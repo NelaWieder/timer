@@ -35,6 +35,9 @@
             <img src="https://upload.wikimedia.org/wikipedia/commons/0/02/OSIRIS_Mars_true_color.jpg" alt="Mars">
         </div>
         <div class="lobby-logo">
+            <div class="lobby-mars-icon">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/0/02/OSIRIS_Mars_true_color.jpg" alt="Mars">
+            </div>
             <h1>Mars Timer</h1>
             <p>Multiplayer</p>
         </div>
@@ -1176,7 +1179,7 @@
         function updateWaitingPlayersList() {
             const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
             const isHost = state.isHost;
-            const canReorder = isHost && !state.gameState; // Only host can reorder before game starts
+            const canReorder = !state.gameState; // All players can reorder before game starts
             
             el.waitingPlayersList.innerHTML = players.map(([id, p], index) => `
                 <div class="player-waiting-item ${!p.online ? 'offline' : ''} ${canReorder ? 'draggable' : ''}" 
@@ -1543,7 +1546,9 @@
                 
                 // Show admin time button for host OR current player during their turn
                 el.adminTimeBtn.style.display = (state.isHost || isMyTurn) ? 'flex' : 'none';
-                el.adminTimeBtn.disabled = data.isPaused ? false : (!state.isHost && !isMyTurn);
+                // Enable button if: host can always use it, or current player can pause during their turn
+                // Disable for non-host when paused (only host can resume)
+                el.adminTimeBtn.disabled = data.isPaused ? (!state.isHost) : (!state.isHost && !isMyTurn);
                 
                 const timerGradient = document.querySelector('#timerGradient');
                 if (timerGradient) {
