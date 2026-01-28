@@ -1103,14 +1103,72 @@
         
         function updateWaitingPlayersList() {
             const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
-            el.waitingPlayersList.innerHTML = players.map(([id, p]) => `
-                <div class="player-waiting-item ${!p.online ? 'offline' : ''}">
-                    <div class="player-waiting-color" style="background: ${COLOR_HEX[p.color]}"></div>
-                    <div class="player-waiting-name">${p.name}</div>
-                    ${p.isHost ? '<div class="player-waiting-host">Host</div>' : ''}
-                    ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
-                </div>
-            `).join('');
+            el.waitingPlayersList.innerHTML = players.map(([id, p], index) => {
+                const isHost = state.isHost;
+                const canMoveUp = isHost && index > 0;
+                const canMoveDown = isHost && index < players.length - 1;
+                
+                return `
+                    <div class="player-waiting-item ${!p.online ? 'offline' : ''}" data-player-id="${id}">
+                        <div class="player-waiting-color" style="background: ${COLOR_HEX[p.color]}"></div>
+                        <div class="player-waiting-name">${p.name}</div>
+                        ${p.isHost ? '<div class="player-waiting-host">Host</div>' : ''}
+                        ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
+                        ${isHost ? `
+                            <div class="player-order-controls">
+                                <button class="order-btn order-btn-up" ${!canMoveUp ? 'disabled' : ''} data-action="up" data-player-id="${id}" title="Przenieś w górę">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="18 15 12 9 6 15"></polyline>
+                                    </svg>
+                                </button>
+                                <button class="order-btn order-btn-down" ${!canMoveDown ? 'disabled' : ''} data-action="down" data-player-id="${id}" title="Przenieś w dół">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            // Add event listeners for order buttons (only if host)
+            if (state.isHost) {
+                el.waitingPlayersList.querySelectorAll('.order-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const playerId = btn.dataset.playerId;
+                        const action = btn.dataset.action;
+                        if (action === 'up') {
+                            movePlayerOrder(playerId, -1);
+                        } else if (action === 'down') {
+                            movePlayerOrder(playerId, 1);
+                        }
+                    });
+                });
+            }
+        }
+        
+        async function movePlayerOrder(playerId, direction) {
+            if (!state.isHost) return;
+            
+            const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
+            const currentIndex = players.findIndex(([id]) => id === playerId);
+            
+            if (currentIndex === -1) return;
+            
+            const newIndex = currentIndex + direction;
+            if (newIndex < 0 || newIndex >= players.length) return;
+            
+            // Swap orders
+            const currentPlayer = players[currentIndex];
+            const targetPlayer = players[newIndex];
+            
+            const updates = {};
+            updates[`players/${currentPlayer[0]}/order`] = targetPlayer[1].order;
+            updates[`players/${targetPlayer[0]}/order`] = currentPlayer[1].order;
+            
+            await update(ref(db, `rooms/${state.roomId}`), updates);
         }
         
         function updateStartButton() {
