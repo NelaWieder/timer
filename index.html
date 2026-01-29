@@ -164,7 +164,19 @@
             </svg>
             <h2 id="overlayTitle">Admin Time</h2>
             <p id="overlayText">Gra wstrzymana</p>
-            <button class="resume-btn" id="resumeBtn">Wznów grę</button>
+            <div class="admin-overlay-buttons">
+                <button class="resume-btn" id="resumeBtn">Wznów grę</button>
+                <button class="end-game-btn" id="endGameBtn" style="display:none;"><div class="progress-fill"></div><span>Koniec gry</span></button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- STATS OVERLAY (koniec gry) -->
+    <div class="stats-overlay" id="statsOverlay">
+        <div class="stats-overlay-content">
+            <h2>Koniec gry</h2>
+            <div class="stats-list" id="statsList"></div>
+            <button class="lobby-btn primary" id="statsCloseBtn">Zamknij</button>
         </div>
     </div>
     
@@ -789,6 +801,7 @@
             overlayTitle: $('overlayTitle'),
             overlayText: $('overlayText'),
             resumeBtn: $('resumeBtn'),
+            endGameBtn: $('endGameBtn'),
             menuBtn: $('menuBtn'),
             hostPanel: $('hostPanel'),
             hostPanelBackdrop: $('hostPanelBackdrop'),
@@ -800,7 +813,10 @@
             hostAdminBtn: $('hostAdminBtn'),
             muteBtn: $('muteBtn'),
             leaveGameBtn: $('leaveGameBtn'),
-            roomCodeSmall: $('roomCodeSmall')
+            roomCodeSmall: $('roomCodeSmall'),
+            statsOverlay: $('statsOverlay'),
+            statsList: $('statsList'),
+            statsCloseBtn: $('statsCloseBtn')
         };
         
         // =============================================
@@ -836,6 +852,13 @@
             const secs = seconds % 60;
             if (hrs > 0) return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function formatDurationMs(ms) {
+            const sec = Math.round((ms || 0) / 1000);
+            const mins = Math.floor(sec / 60);
+            const secs = sec % 60;
+            return mins > 0 ? `${mins} min ${secs} s` : `${secs} s`;
         }
         
         // Get Polish ordinal for generation number
@@ -1243,6 +1266,7 @@
             state.lastAnnouncedTurnTime = turnStartTime;
             state.lastAnnouncedGeneration = 1;
             
+            const now = Date.now();
             await update(ref(db, `rooms/${state.roomId}`), {
                 state: 'playing',
                 generation: 1,
@@ -1252,7 +1276,11 @@
                 turnStartTime: turnStartTime,
                 turnDuration: state.turnDuration,
                 isPaused: false,
-                gameStartTime: Date.now()
+                gameStartTime: now,
+                generationStartTimes: { 1: now },
+                generationEndTimes: {},
+                totalAdminTimeMs: 0,
+                turnHistory: {}
             });
             
             // Announce first player (only here, listener won't announce again)
@@ -1343,13 +1371,20 @@
                             if (activeRemaining === 0) {
                                 // Last active player passed -> end generation (priority)
                                 TTS.speak(`Koniec pokolenia ${data.generation || 1}`);
-                                // Host also pauses the game for end-of-generation overlay
-                                update(ref(db, `rooms/${state.roomId}`), {
+                                const endTime = Date.now();
+                                const currentPlayerId = playerOrder[data.currentPlayerIndex];
+                                const turnStartTime = data.turnStartTime || endTime;
+                                const turnKey = `turnHistory/${endTime}_${Math.random().toString(36).slice(2)}`;
+                                const gen = data.generation || 1;
+                                const updatePayload = {
                                     isPaused: true,
-                                    overlayTitle: 'Koniec pokolenia ' + (data.generation || 1),
+                                    overlayTitle: 'Koniec pokolenia ' + gen,
                                     overlayText: 'Wszyscy spasowali',
-                                    overlayButton: '🚀 Następne Pokolenie'
-                                }).catch(() => {});
+                                    overlayButton: '🚀 Następne Pokolenie',
+                                    [turnKey]: { playerId: currentPlayerId, startTime: turnStartTime, endTime },
+                                    [`generationEndTimes/${gen}`]: endTime
+                                };
+                                update(ref(db, `rooms/${state.roomId}`), updatePayload).catch(() => {});
                             } else {
                                 // Announce each newly passed player (usually one)
                                 newlyPassed.forEach(pid => {
@@ -1370,9 +1405,12 @@
                                 } while (data.players?.[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
 
                                 const newTurnTime = Date.now();
+                                const currentPlayerIdForTurn = playerOrder[data.currentPlayerIndex];
+                                const turnKey = `turnHistory/${newTurnTime}_${Math.random().toString(36).slice(2)}`;
                                 update(ref(db, `rooms/${state.roomId}`), {
                                     currentPlayerIndex: nextIndex,
-                                    turnStartTime: newTurnTime
+                                    turnStartTime: newTurnTime,
+                                    [turnKey]: { playerId: currentPlayerIdForTurn, startTime: data.turnStartTime || newTurnTime, endTime: newTurnTime }
                                 }).catch(() => {});
                             }
                         }
@@ -1452,9 +1490,12 @@
                                             nextIndex = (nextIndex + 1) % playerOrder.length;
                                             attempts++;
                                         } while (data.players?.[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
+                                        const newTurnTime = Date.now();
+                                        const turnKey = `turnHistory/${newTurnTime}_${Math.random().toString(36).slice(2)}`;
                                         update(ref(db, `rooms/${state.roomId}`), {
                                             currentPlayerIndex: nextIndex,
-                                            turnStartTime: Date.now()
+                                            turnStartTime: newTurnTime,
+                                            [turnKey]: { playerId: currentPlayerId, startTime: data.turnStartTime || newTurnTime, endTime: newTurnTime }
                                         }).catch(() => {});
                                     }
                                     state.lastAnnouncedTurnTime = data.turnStartTime;
@@ -1495,6 +1536,8 @@
                         }
                     }
                     
+                } else if (data.state === 'finished') {
+                    showStatsScreen(data);
                 } else if (data.state === 'waiting') {
                     enterWaitingRoom();
                 }
@@ -1612,6 +1655,11 @@
                 const pausedBy = data.pausedBy;
                 const canResume = state.isHost || (pausedBy === state.playerId);
                 el.resumeBtn.style.display = canResume ? 'inline-block' : 'none';
+                
+                // "Koniec gry" only at end of generation, host only, smaller + hold 0.5s
+                const isEndOfGen = data.overlayTitle && data.overlayTitle.includes('Koniec pokolenia');
+                el.endGameBtn.style.display = isEndOfGen && state.isHost ? 'inline-flex' : 'none';
+                el.endGameBtn.querySelector('.progress-fill').style.width = '0%';
             } else {
                 el.adminOverlay.classList.remove('active');
             }
@@ -1646,6 +1694,8 @@
             
             // WAŻNE: Użyj NOWEGO turnStartTime jako unikalnego markera!
             const newTurnTime = Date.now();
+            const turnStartTime = state.gameState.turnStartTime || newTurnTime;
+            const turnKey = `turnHistory/${newTurnTime}_${Math.random().toString(36).slice(2)}`;
             
             console.log('[PASS] Passing turn. Current:', state.gameState.currentPlayerIndex, 
                        '-> Next:', nextIndex, 'NewTurnTime:', newTurnTime);
@@ -1654,7 +1704,8 @@
             // To zapewnia że ogłoszenie działa nawet gdy inny gracz klika PASS
             await update(ref(db, `rooms/${state.roomId}`), {
                 currentPlayerIndex: nextIndex,
-                turnStartTime: newTurnTime
+                turnStartTime: newTurnTime,
+                [turnKey]: { playerId: currentPlayerId, startTime: turnStartTime, endTime: newTurnTime }
             });
         }
         
@@ -1696,12 +1747,14 @@
             state.lastAnnouncedTurnTime = newTurnTime;
             state.lastAnnouncedGeneration = newGeneration;
             
+            const now = Date.now();
             const updates = {
                 generation: newGeneration,
                 currentPlayerIndex: newStartIndex,
                 startPlayerIndex: newStartIndex,
                 turnStartTime: newTurnTime,
-                isPaused: false
+                isPaused: false,
+                [`generationStartTimes/${newGeneration}`]: now
             };
             
             playerOrder.forEach(pid => {
@@ -1715,6 +1768,134 @@
                 playTurnStart();
                 TTS.speak(firstPlayer?.name);
             }, 2500);
+        }
+        
+        // END GAME (host only, from "Koniec gry" hold)
+        async function endGame() {
+            if (!state.isHost || !state.gameState) return;
+            const data = state.gameState;
+            const gameEndTime = Date.now();
+            const gameStartTime = data.gameStartTime || gameEndTime;
+            const durationSec = Math.floor((gameEndTime - gameStartTime) / 1000);
+            const finalGeneration = data.generation || 1;
+            const playerOrder = data.playerOrder || [];
+            const players = (playerOrder.map(pid => data.players?.[pid]).filter(Boolean)) || [];
+            
+            await update(ref(db, `rooms/${state.roomId}`), {
+                state: 'finished',
+                gameEndTime,
+                finalGeneration,
+                gameDurationSeconds: durationSec,
+                finishedAt: serverTimestamp()
+            });
+            
+            // Show stats on host immediately; others will get it via listener
+            showStatsScreen({
+                ...data,
+                state: 'finished',
+                gameEndTime,
+                finalGeneration,
+                gameDurationSeconds: durationSec
+            });
+        }
+        
+        function showStatsScreen(data) {
+            const gen = data.finalGeneration ?? data.generation ?? 0;
+            const durationSec = data.gameDurationSeconds ?? 0;
+            const playerOrder = data.playerOrder || [];
+            const players = playerOrder.map(pid => ({ id: pid, ...(data.players?.[pid] || {}) })).filter(p => p.name);
+            
+            const mins = Math.floor(durationSec / 60);
+            const secs = durationSec % 60;
+            const durationStr = mins > 0 ? `${mins} min ${secs} s` : `${secs} s`;
+            
+            const generationStartTimes = data.generationStartTimes || {};
+            const generationEndTimes = data.generationEndTimes || {};
+            const totalAdminTimeMs = data.totalAdminTimeMs || 0;
+            const turnHistory = data.turnHistory || {};
+            const turnEntries = Object.values(turnHistory).filter(e => e && e.playerId != null && e.startTime != null && e.endTime != null);
+            
+            const totalGameMs = durationSec * 1000;
+            const activeGameMs = Math.max(0, totalGameMs - totalAdminTimeMs);
+            const adminTimePercent = totalGameMs > 0 ? Math.round((totalAdminTimeMs / totalGameMs) * 100) : 0;
+            
+            let totalBetweenGensMs = 0;
+            const genDurations = [];
+            for (let n = 1; n <= gen; n++) {
+                const start = generationStartTimes[n] ?? generationStartTimes[String(n)] ?? 0;
+                const end = generationEndTimes[n] ?? generationEndTimes[String(n)] ?? 0;
+                if (start && end) {
+                    const ms = Math.max(0, end - start);
+                    genDurations.push({ n, ms });
+                }
+                if (n < gen) {
+                    const nextStart = generationStartTimes[n + 1] ?? generationStartTimes[String(n + 1)] ?? 0;
+                    if (end && nextStart) totalBetweenGensMs += Math.max(0, nextStart - end);
+                }
+            }
+            const avgGenDurationMs = genDurations.length > 0
+                ? genDurations.reduce((acc, g) => acc + g.ms, 0) / genDurations.length
+                : null;
+            
+            const playerStats = {};
+            players.forEach(p => { playerStats[p.id] = { sumMs: 0, count: 0, maxMs: 0, minMs: null }; });
+            turnEntries.forEach(e => {
+                const durationMs = Math.max(0, e.endTime - e.startTime);
+                if (!playerStats[e.playerId]) playerStats[e.playerId] = { sumMs: 0, count: 0, maxMs: 0, minMs: null };
+                const st = playerStats[e.playerId];
+                st.sumMs += durationMs;
+                st.count += 1;
+                st.maxMs = Math.max(st.maxMs, durationMs);
+                st.minMs = st.minMs === null ? durationMs : Math.min(st.minMs, durationMs);
+            });
+            
+            const genDurationsHtml = genDurations.length > 0
+                ? genDurations.map(g => `<div class="stats-row stats-sub"><span>Pokolenie ${g.n}</span><strong>${formatDurationMs(g.ms)}</strong></div>`).join('')
+                : '';
+            
+            const generalHtml = `
+                <div class="stats-row"><span>Łączny czas gry</span><strong>${durationStr}</strong></div>
+                <div class="stats-row"><span>Liczba pokoleń</span><strong>${gen}</strong></div>
+                ${genDurationsHtml}
+                ${avgGenDurationMs !== null ? `<div class="stats-row stats-sub"><span>Średni czas pokolenia</span><strong>${formatDurationMs(avgGenDurationMs)}</strong></div>` : ''}
+                <div class="stats-row"><span>Łączny admin time</span><strong>${formatDurationMs(totalAdminTimeMs)}</strong></div>
+                <div class="stats-row"><span>Admin time (% czasu gry)</span><strong>${adminTimePercent}%</strong></div>
+                <div class="stats-row"><span>Czas między pokoleniami</span><strong>${formatDurationMs(totalBetweenGensMs)}</strong></div>
+            `;
+            
+            const playersHtml = players.map(p => {
+                const st = playerStats[p.id] || { sumMs: 0, count: 0, maxMs: 0, minMs: null };
+                const avgMs = st.count > 0 ? st.sumMs / st.count : 0;
+                const sharePercent = activeGameMs > 0 && st.sumMs >= 0 ? Math.round((st.sumMs / activeGameMs) * 100) : null;
+                const minTurnStr = st.count === 0 ? '—' : formatDurationMs(st.minMs);
+                const maxTurnStr = st.count === 0 ? '—' : formatDurationMs(st.maxMs);
+                const shareStr = sharePercent !== null ? `${sharePercent}%` : '—';
+                return `
+                    <div class="stats-player-block">
+                        <div class="stats-player">
+                            <span class="stats-player-dot" style="background:${COLOR_HEX[p.color] || '#6b7280'}"></span>
+                            <span>${p.name}</span>
+                        </div>
+                        <div class="stats-player-rows">
+                            <div class="stats-row stats-sub"><span>Suma czasu tur</span><strong>${formatDurationMs(st.sumMs)}</strong></div>
+                            <div class="stats-row stats-sub"><span>Udział czasu w turze</span><strong>${shareStr}</strong></div>
+                            <div class="stats-row stats-sub"><span>Średni czas tury</span><strong>${st.count === 0 ? '—' : formatDurationMs(avgMs)}</strong></div>
+                            <div class="stats-row stats-sub"><span>Liczba tur</span><strong>${st.count}</strong></div>
+                            <div class="stats-row stats-sub"><span>Najkrótsza tura</span><strong>${minTurnStr}</strong></div>
+                            <div class="stats-row stats-sub"><span>Najdłuższa tura</span><strong>${maxTurnStr}</strong></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            el.statsList.innerHTML = `
+                <div class="stats-section-title">Statystyki ogólne</div>
+                ${generalHtml}
+                <div class="stats-players-title">Statystyki graczy</div>
+                <div class="stats-players">${playersHtml}</div>
+            `;
+            el.adminOverlay.classList.remove('active');
+            el.statsOverlay.classList.add('active');
         }
         
         // ADMIN TIME
@@ -1758,6 +1939,7 @@
                 
                 const pauseDuration = Date.now() - (state.gameState.pausedAt || Date.now());
                 const newTurnTime = state.gameState.turnStartTime + pauseDuration;
+                const totalAdminTimeMs = (state.gameState.totalAdminTimeMs || 0) + pauseDuration;
                 
                 // Mark as announced so we don't re-announce current player
                 state.lastAnnouncedTurnTime = newTurnTime;
@@ -1765,7 +1947,8 @@
                 await update(ref(db, `rooms/${state.roomId}`), {
                     isPaused: false,
                     turnStartTime: newTurnTime,
-                    pausedBy: null // Clear pausedBy when resuming
+                    pausedBy: null,
+                    totalAdminTimeMs
                 });
             }
         }
@@ -1784,16 +1967,17 @@
             } while (state.players[playerOrder[nextIndex]]?.passedGen && attempts < playerOrder.length);
             
             const newTurnTime = Date.now();
+            const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
+            const turnStartTime = state.gameState.turnStartTime || newTurnTime;
+            const turnKey = `turnHistory/${newTurnTime}_${Math.random().toString(36).slice(2)}`;
             
             console.log('[FORCE NEXT] Forcing next turn. Current:', state.gameState.currentPlayerIndex, 
                        '-> Next:', nextIndex);
             
-            // Mark as announced so we announce via listener
-            // Actually no - let the listener handle it for consistency
-            
             await update(ref(db, `rooms/${state.roomId}`), {
                 currentPlayerIndex: nextIndex,
-                turnStartTime: newTurnTime
+                turnStartTime: newTurnTime,
+                [turnKey]: { playerId: currentPlayerId, startTime: turnStartTime, endTime: newTurnTime }
             });
         }
         
@@ -1858,6 +2042,36 @@
             el.passGenBtn.querySelector('.progress-fill').style.width = '0%';
             state.holdProgress = 0;
             if (confirmed) passGen();
+        }
+        
+        // =============================================
+        // HOLD FOR END GAME (0.5 s)
+        // =============================================
+        let endGameHoldTimeout = null;
+        function startEndGameHold() {
+            if (!el.endGameBtn || el.endGameBtn.style.display === 'none') return;
+            const progressFill = el.endGameBtn.querySelector('.progress-fill');
+            if (!progressFill) return;
+            let progress = 0;
+            progressFill.style.width = '0%';
+            endGameHoldTimeout = setInterval(() => {
+                progress += 10;
+                progressFill.style.width = progress + '%';
+                if (progress >= 100) {
+                    endEndGameHold(true);
+                }
+            }, 50);
+        }
+        function endEndGameHold(confirmed = false) {
+            if (endGameHoldTimeout) {
+                clearInterval(endGameHoldTimeout);
+                endGameHoldTimeout = null;
+            }
+            if (el.endGameBtn) {
+                const pf = el.endGameBtn.querySelector('.progress-fill');
+                if (pf) pf.style.width = '0%';
+            }
+            if (confirmed) endGame();
         }
         
         // =============================================
@@ -2033,6 +2247,18 @@
             } else {
                 toggleAdminTime();
             }
+        });
+        
+        el.endGameBtn.addEventListener('mousedown', startEndGameHold);
+        el.endGameBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startEndGameHold(); }, { passive: false });
+        el.endGameBtn.addEventListener('mouseup', () => endEndGameHold(false));
+        el.endGameBtn.addEventListener('mouseleave', () => endEndGameHold(false));
+        el.endGameBtn.addEventListener('touchend', () => endEndGameHold(false));
+        el.endGameBtn.addEventListener('touchcancel', () => endEndGameHold(false));
+        
+        el.statsCloseBtn.addEventListener('click', () => {
+            el.statsOverlay.classList.remove('active');
+            leaveRoom();
         });
         
         el.menuBtn.addEventListener('click', () => {
