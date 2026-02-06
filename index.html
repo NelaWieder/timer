@@ -29,6 +29,15 @@
     
     <div class="connection-status" id="connectionStatus">⚠ Brak połączenia...</div>
     
+    <!-- RECOVERY OVERLAY (błąd / awaryjne wyjście) -->
+    <div class="recovery-overlay" id="recoveryOverlay" aria-hidden="true">
+        <div class="recovery-overlay-content">
+            <p class="recovery-overlay-title">Coś poszło nie tak</p>
+            <p class="recovery-overlay-text">Możesz wrócić do menu. Sesja zostanie wyczyszczona, aby uniknąć ponownego błędu.</p>
+            <button type="button" class="lobby-btn primary recovery-overlay-btn" id="recoveryBackBtn">Wróć do menu</button>
+        </div>
+    </div>
+    
     <!-- LOBBY SCREEN -->
     <div class="screen lobby-screen active" id="lobbyScreen">
         <div class="mars-planet-lobby"></div>
@@ -45,7 +54,7 @@
             <input type="text" class="join-input" id="joinCodeInput" placeholder="KOD" maxlength="4" autocomplete="off">
             <button class="lobby-btn primary" id="joinRoomBtn">Dołącz</button>
         </div>
-        <div class="lobby-version">v1.14</div>
+        <div class="lobby-version">v1.15</div>
     </div>
     
     <!-- NAME MODAL -->
@@ -838,6 +847,8 @@
         const $ = id => document.getElementById(id);
         const el = {
             connectionStatus: $('connectionStatus'),
+            recoveryOverlay: $('recoveryOverlay'),
+            recoveryBackBtn: $('recoveryBackBtn'),
             lobbyScreen: $('lobbyScreen'),
             waitingScreen: $('waitingScreen'),
             gameScreen: $('gameScreen'),
@@ -1099,9 +1110,18 @@
         }
         
         // =============================================
-        // WAKE LOCK API
+        // WAKE LOCK API (ekran nie wygasa w trakcie gry / w pokoju)
         // =============================================
         let wakeLock = null;
+        
+        function releaseWakeLock() {
+            if (!('wakeLock' in navigator) || wakeLock === null) return;
+            try {
+                wakeLock.release();
+                wakeLock = null;
+                console.log('[WAKE] Wake Lock released (leave room)');
+            } catch (e) {}
+        }
         
         async function requestWakeLock() {
             if (!('wakeLock' in navigator)) return;
@@ -1118,7 +1138,7 @@
                 console.log('[WAKE] Wake Lock acquired');
                 
                 wakeLock.addEventListener('release', () => {
-                    console.log('[WAKE] Wake Lock released');
+                    console.log('[WAKE] Wake Lock released (browser)');
                     wakeLock = null;
                 });
             } catch (err) {
@@ -1128,11 +1148,11 @@
         
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible') {
-                console.log('[VISIBILITY] Page visible again');
-                await requestWakeLock();
-                
                 if (state.audioContext && state.audioContext.state === 'suspended') {
                     state.audioContext.resume();
+                }
+                if (state.roomId) {
+                    await requestWakeLock();
                 }
             }
         });
@@ -1141,13 +1161,15 @@
         // LOCAL STORAGE (Auto-Reconnect)
         // =============================================
         function saveSession() {
-            localStorage.setItem('marsTimer_session', JSON.stringify({
-                roomId: state.roomId,
-                playerId: state.playerId,
-                playerName: state.playerName,
-                playerColor: state.playerColor,
-                isHost: state.isHost
-            }));
+            try {
+                localStorage.setItem('marsTimer_session', JSON.stringify({
+                    roomId: state.roomId,
+                    playerId: state.playerId,
+                    playerName: state.playerName,
+                    playerColor: state.playerColor,
+                    isHost: state.isHost
+                }));
+            } catch (e) {}
         }
         
         function loadSession() {
@@ -1159,7 +1181,64 @@
         }
         
         function clearSession() {
-            localStorage.removeItem('marsTimer_session');
+            try { localStorage.removeItem('marsTimer_session'); } catch (e) {}
+        }
+        
+        /** Awaryjne wyjście do menu – zawsze możliwe, czyści sesję (żeby ponowne wejście nie wracało do błędu). */
+        function forceLeaveToLobby() {
+            clearSession();
+            releaseWakeLock();
+            try {
+                unsubscribers.forEach(unsub => { try { unsub(); } catch (_) {} });
+                unsubscribers.length = 0;
+                if (state.localTimerInterval) clearInterval(state.localTimerInterval);
+                state.localTimerInterval = null;
+                if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
+                state.gameTimerInterval = null;
+                if (state.holdTimeout) clearInterval(state.holdTimeout);
+                state.holdTimeout = null;
+                if (typeof endGameHoldTimeout !== 'undefined' && endGameHoldTimeout) clearInterval(endGameHoldTimeout);
+                if (state.pendingTurnAnnounceTimeoutId) clearTimeout(state.pendingTurnAnnounceTimeoutId);
+                state.pendingTurnAnnounceTimeoutId = null;
+                if (typeof TTS !== 'undefined' && TTS && typeof TTS.stop === 'function') TTS.stop();
+            } catch (_) {}
+            const hadRoom = state.roomId && state.playerId;
+            const wasHost = state.isHost;
+            const rid = state.roomId;
+            const pid = state.playerId;
+            state.roomId = null;
+            state.playerId = null;
+            state.isHost = false;
+            state.gameState = null;
+            state.players = {};
+            state.lastAnnouncedTurnTime = 0;
+            state.lastAnnouncedGeneration = 0;
+            state.warningPlayed = false;
+            state.timeUpPlayed = false;
+            state.gameStartAnnounced = false;
+            if (hadRoom && rid && pid) {
+                try {
+                    if (wasHost) remove(ref(db, `rooms/${rid}`)).catch(() => {});
+                    else remove(ref(db, `rooms/${rid}/players/${pid}`)).catch(() => {});
+                } catch (_) {}
+            }
+            try {
+                document.body.classList.remove('is-host');
+                if (el.hostOnlySection) el.hostOnlySection.style.display = 'none';
+                if (el.hostSoundSection) el.hostSoundSection.style.display = 'none';
+                if (el.timeSettingMini) el.timeSettingMini.style.display = 'none';
+                if (el.recoveryOverlay) el.recoveryOverlay.classList.remove('active');
+                if (el.recoveryOverlay) el.recoveryOverlay.setAttribute('aria-hidden', 'true');
+                showScreen('lobbyScreen');
+                if (el.joinForm) el.joinForm.classList.remove('active');
+            } catch (_) {}
+        }
+        
+        function showRecoveryOverlay() {
+            try {
+                const ov = document.getElementById('recoveryOverlay');
+                if (ov) { ov.classList.add('active'); ov.setAttribute('aria-hidden', 'false'); }
+            } catch (_) {}
         }
         
         // =============================================
@@ -1315,6 +1394,7 @@
         
         function enterWaitingRoom() {
             showScreen('waitingScreen');
+            requestWakeLock();
             el.roomCodeDisplay.textContent = state.roomId;
             el.roomCodeSmall.textContent = state.roomId;
             el.timeValueMini.textContent = state.turnDuration;
@@ -1322,22 +1402,22 @@
             
             const roomRef = ref(db, `rooms/${state.roomId}`);
             const unsubRoom = onValue(roomRef, (snapshot) => {
-                if (!snapshot.exists()) {
-                    alert('Pokój został zamknięty');
-                    leaveRoom();
-                    return;
-                }
-                
-                const data = snapshot.val();
-                state.players = data.players || {};
-                state.turnDuration = data.turnDuration || 45;
-                el.timeValueMini.textContent = state.turnDuration;
-                
-                updateWaitingPlayersList();
-                updateStartButton();
-                
-                if (data.state === 'prep' || data.state === 'playing') {
-                    startGameListener();
+                try {
+                    if (!snapshot.exists()) {
+                        alert('Pokój został zamknięty');
+                        leaveRoom();
+                        return;
+                    }
+                    const data = snapshot.val() || {};
+                    state.players = data.players || {};
+                    state.turnDuration = data.turnDuration || 45;
+                    if (el.timeValueMini) el.timeValueMini.textContent = state.turnDuration;
+                    updateWaitingPlayersList();
+                    updateStartButton();
+                    if (data.state === 'prep' || data.state === 'playing') startGameListener();
+                } catch (e) {
+                    console.error('[waiting room]', e);
+                    showRecoveryOverlay();
                 }
             });
             unsubscribers.push(unsubRoom);
@@ -1472,14 +1552,14 @@
             }).catch(() => {});
             
             const unsubGame = onValue(roomRef, (snapshot) => {
-                if (!snapshot.exists()) {
-                    leaveRoom();
-                    return;
-                }
-                
-                const data = snapshot.val();
-                if (!data || typeof data !== 'object') return;
-                const prevGameState = state.gameState;
+                try {
+                    if (!snapshot.exists()) {
+                        leaveRoom();
+                        return;
+                    }
+                    const data = snapshot.val();
+                    if (!data || typeof data !== 'object') return;
+                    const prevGameState = state.gameState;
                 
                 state.gameState = data;
                 state.players = data.players || {};
@@ -1684,54 +1764,53 @@
                 } else if (data.state === 'waiting') {
                     enterWaitingRoom();
                 }
+                } catch (e) {
+                    console.error('[game room]', e);
+                    showRecoveryOverlay();
+                }
             });
             unsubscribers.push(unsubGame);
             
-            // Timer loop
+            // Timer loop (try/catch w każdym ticku – błąd nie zatrzymuje interwału)
             state.localTimerInterval = setInterval(() => {
-                if (!state.gameState || state.gameState.isPaused) return;
-                
-                const now = Date.now();
-                const elapsed = (now - state.gameState.turnStartTime) / 1000;
-                const remaining = state.gameState.turnDuration - elapsed;
-                
-                updateTimerDisplay(remaining);
-                
-                // Warning sounds (host only)
-                if (state.isHost && !state.isMuted) {
-                    // 5 second warning
-                    if (remaining <= 5.1 && remaining > 4.5 && !state.warningPlayed) {
-                        playWarning();
-                        state.warningPlayed = true;
+                try {
+                    if (!state.gameState || state.gameState.isPaused) return;
+                    const now = Date.now();
+                    const elapsed = (now - state.gameState.turnStartTime) / 1000;
+                    const remaining = state.gameState.turnDuration - elapsed;
+                    updateTimerDisplay(remaining);
+                    if (state.isHost && !state.isMuted) {
+                        if (remaining <= 5.1 && remaining > 4.5 && !state.warningPlayed) {
+                            playWarning();
+                            state.warningPlayed = true;
+                        }
+                        if (remaining <= 0.1 && remaining > -0.5 && !state.timeUpPlayed) {
+                            playTimeUp();
+                            hostSpeak('Koniec czasu');
+                            state.timeUpPlayed = true;
+                        }
                     }
-                    
-                    // Time up – dźwięk + ogłoszenie głosowe
-                    if (remaining <= 0.1 && remaining > -0.5 && !state.timeUpPlayed) {
-                        playTimeUp();
-                        hostSpeak('Koniec czasu');
-                        state.timeUpPlayed = true;
-                    }
-                }
+                } catch (_) {}
             }, 50);
             
-            // Game timer
             state.gameTimerInterval = setInterval(() => {
-                if (!state.gameState || !state.gameState.gameStartTime) return;
-                const elapsed = Math.floor((Date.now() - state.gameState.gameStartTime) / 1000);
-                el.gameTimer.textContent = formatGameTime(elapsed);
+                try {
+                    if (!state.gameState || !state.gameState.gameStartTime) return;
+                    const elapsed = Math.floor((Date.now() - state.gameState.gameStartTime) / 1000);
+                    if (el.gameTimer) el.gameTimer.textContent = formatGameTime(elapsed);
+                } catch (_) {}
             }, 1000);
         }
         
         function updateTimerDisplay(remaining) {
-            el.timerText.textContent = formatTime(remaining);
-            
+            if (!state.gameState) return;
+            if (el.timerText) el.timerText.textContent = formatTime(remaining);
             const progress = Math.min(1, Math.max(0, (state.gameState.turnDuration - remaining) / state.gameState.turnDuration));
             const circumference = 2 * Math.PI * 130;
-            el.timerProgress.style.strokeDashoffset = circumference * (1 - progress);
-            
-            el.timerText.classList.toggle('overtime', remaining < 0);
-            el.timerText.classList.toggle('warning', remaining <= 5 && remaining > 0);
-            el.timerProgress.classList.toggle('overtime', remaining < 0);
+            if (el.timerProgress) el.timerProgress.style.strokeDashoffset = circumference * (1 - progress);
+            if (el.timerText) el.timerText.classList.toggle('overtime', remaining < 0);
+            if (el.timerText) el.timerText.classList.toggle('warning', remaining <= 5 && remaining > 0);
+            if (el.timerProgress) el.timerProgress.classList.toggle('overtime', remaining < 0);
         }
         
         function updateGameUI(data) {
@@ -2582,51 +2661,55 @@
         }
         
         async function leaveRoom() {
-            unsubscribers.forEach(unsub => unsub());
-            unsubscribers = [];
-            
-            if (state.localTimerInterval) clearInterval(state.localTimerInterval);
-            if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
-            
-            TTS.stop();
-            
-            if (state.roomId && state.playerId) {
-                try {
-                    if (state.isHost) {
-                        await remove(ref(db, `rooms/${state.roomId}`));
-                    } else {
-                        await remove(ref(db, `rooms/${state.roomId}/players/${state.playerId}`));
-                    }
-                } catch(e) {}
-            }
-            
-            state.roomId = null;
-            state.playerId = null;
-            state.isHost = false;
-            state.gameState = null;
-            state.players = {};
-            state.lastAnnouncedTurnTime = 0;
-            state.lastAnnouncedGeneration = 0;
-            state.warningPlayed = false;
-            state.timeUpPlayed = false;
-            state.gameStartAnnounced = false;
-            
             clearSession();
-            document.body.classList.remove('is-host');
-            el.hostOnlySection.style.display = 'none';
-            el.hostSoundSection.style.display = 'none';
-            el.timeSettingMini.style.display = 'none';
-            showScreen('lobbyScreen');
-            el.joinForm.classList.remove('active');
+            releaseWakeLock();
+            try {
+                unsubscribers.forEach(unsub => { try { unsub(); } catch (_) {} });
+                unsubscribers.length = 0;
+                if (state.localTimerInterval) clearInterval(state.localTimerInterval);
+                state.localTimerInterval = null;
+                if (state.gameTimerInterval) clearInterval(state.gameTimerInterval);
+                state.gameTimerInterval = null;
+                if (typeof TTS !== 'undefined' && TTS && typeof TTS.stop === 'function') TTS.stop();
+                if (state.roomId && state.playerId) {
+                    try {
+                        if (state.isHost) await remove(ref(db, `rooms/${state.roomId}`));
+                        else await remove(ref(db, `rooms/${state.roomId}/players/${state.playerId}`));
+                    } catch (e) {}
+                }
+                state.roomId = null;
+                state.playerId = null;
+                state.isHost = false;
+                state.gameState = null;
+                state.players = {};
+                state.lastAnnouncedTurnTime = 0;
+                state.lastAnnouncedGeneration = 0;
+                state.warningPlayed = false;
+                state.timeUpPlayed = false;
+                state.gameStartAnnounced = false;
+                if (el.hostOnlySection) el.hostOnlySection.style.display = 'none';
+                if (el.hostSoundSection) el.hostSoundSection.style.display = 'none';
+                if (el.timeSettingMini) el.timeSettingMini.style.display = 'none';
+            } catch (e) {}
+            finally {
+                clearSession();
+                try {
+                    showScreen('lobbyScreen');
+                    if (el.joinForm) el.joinForm.classList.remove('active');
+                    document.body.classList.remove('is-host');
+                } catch (_) {}
+            }
         }
         
         // =============================================
         // HOLD FOR PASS GEN (1 s)
         // =============================================
         function startHold() {
-            if (el.passGenBtn.disabled) return;
-            state.holdProgress = 0;
+            if (!el.passGenBtn || el.passGenBtn.disabled) return;
             const progressFill = el.passGenBtn.querySelector('.progress-fill');
+            if (!progressFill) return;
+            state.holdProgress = 0;
+            progressFill.style.width = '0%';
             state.holdTimeout = setInterval(() => {
                 state.holdProgress += 10;
                 progressFill.style.width = state.holdProgress + '%';
@@ -2639,9 +2722,12 @@
                 clearInterval(state.holdTimeout);
                 state.holdTimeout = null;
             }
-            el.passGenBtn.querySelector('.progress-fill').style.width = '0%';
+            try {
+                const pf = el.passGenBtn?.querySelector?.('.progress-fill');
+                if (pf) pf.style.width = '0%';
+            } catch (_) {}
             state.holdProgress = 0;
-            if (confirmed) passGen();
+            if (confirmed) try { passGen(); } catch (e) { showRecoveryOverlay(); }
         }
         
         // =============================================
@@ -2995,11 +3081,14 @@
         
         el.leaveGameBtn.addEventListener('click', () => {
             if (confirm(state.isHost ? 'Jako host, opuszczenie gry zamknie pokój dla wszystkich. Kontynuować?' : 'Czy na pewno chcesz opuścić grę?')) {
-                el.hostPanel.classList.remove('open');
-                el.hostPanelBackdrop.classList.remove('open');
-                leaveRoom();
+                try {
+                    if (el.hostPanel) el.hostPanel.classList.remove('open');
+                    if (el.hostPanelBackdrop) el.hostPanelBackdrop.classList.remove('open');
+                    leaveRoom();
+                } catch (e) { showRecoveryOverlay(); }
             }
         });
+        if (el.recoveryBackBtn) el.recoveryBackBtn.addEventListener('click', () => { try { forceLeaveToLobby(); } catch (_) { forceLeaveToLobby(); } });
         
         // Prevent double-tap zoom
         let lastTouchEnd = 0;
@@ -3010,12 +3099,18 @@
         }, false);
         
         // =============================================
+        // GLOBAL ERROR HANDLERS (stabilność, awaryjne wyjście)
+        // =============================================
+        window.onerror = function () { try { showRecoveryOverlay(); } catch (_) {} return true; };
+        window.addEventListener('unhandledrejection', function () { try { showRecoveryOverlay(); } catch (_) {} });
+        
+        // =============================================
         // INITIALIZATION
         // =============================================
         async function init() {
             console.log('[INIT] Mars Timer starting...');
             
-            requestWakeLock();
+            // Wake Lock włączany przy wejściu do pokoju (enterWaitingRoom / startGameListener)
             
             // Initialize TTS early (but unlock needs user gesture)
             TTS.init();
@@ -3029,14 +3124,18 @@
                 el.joinForm.classList.add('active');
             }
             
-            // Auto-reconnect
+            // Auto-reconnect (z timeoutem, żeby nie wisieć w nieskończoność)
             const session = loadSession();
             if (session && session.roomId) {
                 try {
                     const roomRef = ref(db, `rooms/${session.roomId}`);
-                    const snapshot = await get(roomRef);
+                    const timeoutMs = 8000;
+                    const snapshot = await Promise.race([
+                        get(roomRef),
+                        new Promise((_, rej) => setTimeout(() => rej(new Error('reconnect_timeout')), timeoutMs))
+                    ]);
                     
-                    if (snapshot.exists()) {
+                    if (snapshot && snapshot.exists()) {
                         const roomData = snapshot.val();
                         if (roomData.players?.[session.playerId]) {
                             state.roomId = session.roomId;
