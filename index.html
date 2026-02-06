@@ -45,6 +45,7 @@
             <input type="text" class="join-input" id="joinCodeInput" placeholder="KOD" maxlength="4" autocomplete="off">
             <button class="lobby-btn primary" id="joinRoomBtn">Dołącz</button>
         </div>
+        <div class="lobby-version">v1.12</div>
     </div>
     
     <!-- NAME MODAL -->
@@ -66,6 +67,10 @@
                 <button class="predefined-player-btn" data-name="Benek" data-color="green">
                     <div class="predefined-player-color" style="background: #22c55e;"></div>
                     <span>Benek</span>
+                </button>
+                <button class="predefined-player-btn" data-name="Mateusz" data-color="yellow">
+                    <div class="predefined-player-color" style="background: #facc15;"></div>
+                    <span>Mateusz</span>
                 </button>
                 <button class="predefined-player-btn custom-player-btn" id="customPlayerBtn" data-action="custom">
                     <div class="predefined-player-color custom-icon"></div>
@@ -164,8 +169,11 @@
             </svg>
             <h2 id="overlayTitle">Admin Time</h2>
             <p id="overlayText">Gra wstrzymana</p>
+            <div class="admin-overlay-draft-order" id="adminOverlayDraftOrder" style="display:none;"></div>
             <div class="admin-overlay-buttons">
                 <button class="resume-btn" id="resumeBtn">Wznów grę</button>
+            </div>
+            <div class="admin-overlay-footer" id="adminOverlayFooter">
                 <button class="end-game-btn" id="endGameBtn" style="display:none;"><div class="progress-fill"></div><span>Koniec gry</span></button>
             </div>
         </div>
@@ -190,7 +198,9 @@
         <div class="host-panel-section" id="hostOnlySection" style="display:none;">
             <div class="host-panel-section-title">Kontrola gry (Host)</div>
             <button class="host-action-btn next-gen-btn" id="nextGenBtn" style="display:none;">🚀 Następne Pokolenie</button>
-            <button class="host-action-btn" id="forceNextBtn">⏭ Następna tura</button>
+            <button class="host-action-btn" id="forceNextBtn">⏭ Zakończ turę za aktywnego gracza</button>
+            <button class="host-action-btn" id="hostPassGenBtn">📋 Pass Gen za aktywnego gracza</button>
+            <button class="host-action-btn" id="undoLastMoveBtn">↩ Cofnij ostatni ruch</button>
             <button class="host-action-btn" id="hostAdminBtn">⏸ Admin Time</button>
         </div>
         <div class="host-panel-section" id="hostSoundSection" style="display:none;">
@@ -214,7 +224,7 @@
         // =============================================
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { 
-            getDatabase, ref, set, get, onValue, off, update, remove, onDisconnect, serverTimestamp 
+            getDatabase, ref, set, get, onValue, update, remove, onDisconnect, serverTimestamp 
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
         
         const firebaseConfig = {
@@ -433,30 +443,19 @@
                 }
             },
             
-            // Main speak function
+            // Komunikaty głosowe (czytanie) – WYŁĄCZNIE na urządzeniu hosta. Nigdy nie rzuca – błędy są łapane.
             speak(text) {
-                // Guards
-                if (!state.isHost) {
-                    console.log('[TTS] Not host, skipping:', text);
-                    return;
-                }
-                
-                if (state.isMuted) {
-                    console.log('[TTS] Muted, skipping:', text);
-                    return;
-                }
-                
-                if (!('speechSynthesis' in window)) {
-                    console.log('[TTS] No speechSynthesis support');
-                    return;
-                }
-                
-                console.log('[TTS] ▶ SPEAKING:', text, '| Unlocked:', this.isUnlocked, '| Voice:', this.polishVoice?.name || 'default');
-                
-                const platform = this.getPlatform();
-                
-                // ALWAYS cancel before new speech (critical for iOS!)
-                speechSynthesis.cancel();
+                try {
+                    if (!state || !state.isHost) return;
+                    if (state.isMuted) return;
+                    if (text == null || typeof text !== 'string') return;
+                    text = String(text).trim();
+                    if (!text) return;
+                    
+                    if (!('speechSynthesis' in window)) return;
+                    
+                    const platform = this.getPlatform();
+                    speechSynthesis.cancel();
 
                 const speakNow = () => {
                     try {
@@ -746,10 +745,12 @@
                 if (platform === 'ios') {
                     setTimeout(speakNow, 100);
                 } else if (platform === 'android') {
-                    // Android: call immediately, no rAF or setTimeout (matches working version)
                     speakNow();
                 } else {
                     setTimeout(speakNow, 50);
+                }
+                } catch (e) {
+                    console.warn('[TTS] speak() error (host only):', e);
                 }
             },
             
@@ -802,6 +803,8 @@
             overlayText: $('overlayText'),
             resumeBtn: $('resumeBtn'),
             endGameBtn: $('endGameBtn'),
+            adminOverlayFooter: $('adminOverlayFooter'),
+            adminOverlayDraftOrder: $('adminOverlayDraftOrder'),
             menuBtn: $('menuBtn'),
             hostPanel: $('hostPanel'),
             hostPanelBackdrop: $('hostPanelBackdrop'),
@@ -810,6 +813,8 @@
             hostSoundSection: $('hostSoundSection'),
             nextGenBtn: $('nextGenBtn'),
             forceNextBtn: $('forceNextBtn'),
+            undoLastMoveBtn: $('undoLastMoveBtn'),
+            hostPassGenBtn: $('hostPassGenBtn'),
             hostAdminBtn: $('hostAdminBtn'),
             muteBtn: $('muteBtn'),
             leaveGameBtn: $('leaveGameBtn'),
@@ -855,9 +860,9 @@
         }
         
         function formatDurationMs(ms) {
-            const sec = Math.round((ms || 0) / 1000);
-            const mins = Math.floor(sec / 60);
-            const secs = sec % 60;
+            const totalSec = Math.round(Math.max(0, ms || 0) / 1000);
+            const mins = Math.floor(totalSec / 60);
+            const secs = totalSec % 60;
             return mins > 0 ? `${mins} min ${secs} s` : `${secs} s`;
         }
         
@@ -899,8 +904,9 @@
             console.log('[AUDIO] Audio initialization complete');
         }
         
+        // Wszystkie dźwięki gry – WYŁĄCZNIE na urządzeniu hosta
         function playBeep(freq = 800, dur = 150, type = 'sine', volume = 0.3) {
-            if (!state.isHost || !state.audioContext || state.isMuted) return;
+            if (!state || !state.isHost || !state.audioContext || state.isMuted) return;
             
             try {
                 // Resume context if suspended
@@ -923,24 +929,30 @@
             }
         }
         
-        // Sound: Turn start (when switching to new player)
         function playTurnStart() {
-            console.log('[AUDIO] Playing turn start sound');
+            if (!state || !state.isHost) return;
             playBeep(600, 100);
             setTimeout(() => playBeep(800, 150), 120);
         }
         
-        // Sound: 5-second warning
         function playWarning() {
-            console.log('[AUDIO] Playing 5s warning');
+            if (!state || !state.isHost) return;
             playBeep(880, 150, 'sine', 0.4);
         }
         
-        // Sound: Time's up
         function playTimeUp() {
-            console.log('[AUDIO] Playing time up sound');
+            if (!state || !state.isHost) return;
             playBeep(300, 300, 'sawtooth', 0.5);
             setTimeout(() => playBeep(250, 400, 'sawtooth', 0.5), 350);
+        }
+        
+        function playGameEndSuccess() {
+            if (!state || !state.isHost) return;
+            const t = 180;
+            playBeep(523, t, 'sine', 0.35);
+            setTimeout(() => playBeep(659, t, 'sine', 0.35), t);
+            setTimeout(() => playBeep(784, t, 'sine', 0.35), t * 2);
+            setTimeout(() => playBeep(1047, t * 2, 'sine', 0.4), t * 3);
         }
         
         // =============================================
@@ -1032,14 +1044,19 @@
             state.playerId = generatePlayerId();
             state.isHost = true;
             
-            const roomRef = ref(db, `rooms/${roomCode}`);
-            await set(roomRef, {
-                host: state.playerId,
-                state: 'waiting',
-                turnDuration: state.turnDuration,
-                createdAt: serverTimestamp()
-            });
-            
+            try {
+                const roomRef = ref(db, `rooms/${roomCode}`);
+                await set(roomRef, {
+                    host: state.playerId,
+                    state: 'waiting',
+                    turnDuration: state.turnDuration,
+                    createdAt: serverTimestamp()
+                });
+            } catch (e) {
+                console.error('[createRoom]', e);
+                alert('Nie udało się utworzyć pokoju. Sprawdź połączenie.');
+                return;
+            }
             showNameModal();
         }
         
@@ -1048,8 +1065,15 @@
             await initAudio();
             
             const roomCode = code.toUpperCase();
-            const roomRef = ref(db, `rooms/${roomCode}`);
-            const snapshot = await get(roomRef);
+            let snapshot;
+            try {
+                const roomRef = ref(db, `rooms/${roomCode}`);
+                snapshot = await get(roomRef);
+            } catch (e) {
+                console.error('[joinRoom]', e);
+                alert('Błąd połączenia. Sprawdź sieć.');
+                return false;
+            }
             
             if (!snapshot.exists()) {
                 alert('Nie znaleziono pokoju o tym kodzie!');
@@ -1111,21 +1135,27 @@
             
             state.playerName = name;
             
-            const playersRef = ref(db, `rooms/${state.roomId}/players`);
-            const snapshot = await get(playersRef);
-            const existingPlayers = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
-            
-            const playerRef = ref(db, `rooms/${state.roomId}/players/${state.playerId}`);
-            await set(playerRef, {
-                name: state.playerName,
-                color: state.playerColor,
-                passedGen: false,
-                online: true,
-                order: existingPlayers,
-                isHost: state.isHost
-            });
-            
-            onDisconnect(playerRef).update({ online: false });
+            let existingPlayers = 0;
+            try {
+                const playersRef = ref(db, `rooms/${state.roomId}/players`);
+                const snapshot = await get(playersRef);
+                existingPlayers = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+                
+                const playerRef = ref(db, `rooms/${state.roomId}/players/${state.playerId}`);
+                await set(playerRef, {
+                    name: state.playerName,
+                    color: state.playerColor,
+                    passedGen: false,
+                    online: true,
+                    order: existingPlayers,
+                    isHost: state.isHost
+                });
+                onDisconnect(playerRef).update({ online: false }).catch(() => {});
+            } catch (e) {
+                console.error('[confirmPlayer]', e);
+                alert('Nie udało się dołączyć do pokoju. Sprawdź połączenie.');
+                return;
+            }
             
             el.nameModal.classList.remove('active');
             saveSession();
@@ -1167,7 +1197,7 @@
                     startGameListener();
                 }
             });
-            unsubscribers.push(() => off(roomRef));
+            unsubscribers.push(unsubRoom);
             
             if (state.isHost) {
                 el.startGameBtn.textContent = 'Rozpocznij grę';
@@ -1299,6 +1329,8 @@
         }
         
         function startGameListener() {
+            // Prevent duplicate listeners when room snapshot fires multiple times (e.g. state + turnStartTime)
+            if (el.gameScreen.classList.contains('active')) return;
             showScreen('gameScreen');
             requestWakeLock();
             
@@ -1542,7 +1574,7 @@
                     enterWaitingRoom();
                 }
             });
-            unsubscribers.push(() => off(roomRef));
+            unsubscribers.push(unsubGame);
             
             // Timer loop
             state.localTimerInterval = setInterval(() => {
@@ -1604,12 +1636,19 @@
                 const isMyTurn = currentPlayerId === state.playerId;
                 el.currentPlayerLabel.textContent = isMyTurn ? 'Twoja tura!' : 'Tura gracza';
                 
-                el.passBtn.disabled = !isMyTurn || data.isPaused;
+                // Host może zawsze spasować za aktywnego gracza (przycisk "Pass {Imię}"); inaczej tylko w swojej turze
+                if (state.isHost && !isMyTurn && !data.isPaused) {
+                    el.passBtn.textContent = `Pass ${currentPlayer.name}`;
+                    el.passBtn.disabled = false;
+                } else {
+                    el.passBtn.textContent = 'PASS';
+                    el.passBtn.disabled = !isMyTurn || data.isPaused;
+                }
                 el.passGenBtn.disabled = !isMyTurn || data.isPaused;
                 
-                // Admin Time button: enabled during player's turn (to pause) or if host (to resume)
+                // Admin Time: host zawsze może włączyć/wyłączyć; gracz gdy jego tura (pause) lub gdy on pauzował (resume)
                 const pausedBy = data.pausedBy;
-                const canUseAdminTime = isMyTurn || state.isHost || (data.isPaused && pausedBy === state.playerId);
+                const canUseAdminTime = state.isHost || isMyTurn || (data.isPaused && pausedBy === state.playerId);
                 el.adminTimeBtn.disabled = !canUseAdminTime;
                 
                 const timerGradient = document.querySelector('#timerGradient');
@@ -1656,10 +1695,47 @@
                 const canResume = state.isHost || (pausedBy === state.playerId);
                 el.resumeBtn.style.display = canResume ? 'inline-block' : 'none';
                 
-                // "Koniec gry" only at end of generation, host only, smaller + hold 0.5s
+                // "Koniec gry" only at end of generation, host only, at bottom + hold 1s
                 const isEndOfGen = data.overlayTitle && data.overlayTitle.includes('Koniec pokolenia');
-                el.endGameBtn.style.display = isEndOfGen && state.isHost ? 'inline-flex' : 'none';
+                const showEndGameBtn = isEndOfGen && state.isHost;
+                el.endGameBtn.style.display = showEndGameBtn ? 'inline-flex' : 'none';
+                if (el.adminOverlayFooter) el.adminOverlayFooter.style.display = showEndGameBtn ? 'flex' : 'none';
                 el.endGameBtn.querySelector('.progress-fill').style.width = '0%';
+                
+                // Kolejność draftu: okrąg jak zegar + strzałka kierunku przekazania kart
+                if (el.adminOverlayDraftOrder) {
+                    if (isEndOfGen && playerOrder.length > 0) {
+                        const gen = data.generation || 1;
+                        const counterClockwise = gen % 2 === 1;
+                        const draftOrder = counterClockwise ? [...playerOrder].reverse() : [...playerOrder];
+                        const directionLabel = counterClockwise ? 'odwrotnie do wskazówek zegara' : 'zgodnie ze wskazówkami zegara';
+                        const n = draftOrder.length;
+                        const itemsHtml = draftOrder.map((pid, i) => {
+                            const p = data.players?.[pid];
+                            const angleDeg = -90 + (360 / n) * i;
+                            return `<div class="admin-draft-item" style="--angle: ${angleDeg}deg"><span class="admin-draft-num">${i + 1}</span><span class="admin-draft-dot" style="background:${COLOR_HEX[p?.color] || '#6b7280'}"></span><span class="admin-draft-name">${p?.name || '—'}</span></div>`;
+                        }).join('');
+                        const arrowPath = counterClockwise
+                            ? 'M 100 18 A 82 82 0 0 0 100 182'
+                            : 'M 100 18 A 82 82 0 0 1 100 182';
+                        el.adminOverlayDraftOrder.innerHTML = `
+                            <div class="admin-draft-title">Kolejność draftu</div>
+                            <div class="admin-draft-circle-wrap">
+                                <div class="admin-draft-circle">
+                                    <svg class="admin-draft-arrow" viewBox="0 0 200 200" aria-hidden="true">
+                                        <defs><marker id="draftArrowHead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="var(--accent-cyan)"/></marker></defs>
+                                        <path class="admin-draft-arrow-path" d="${arrowPath}" fill="none" stroke="var(--accent-cyan)" stroke-width="3" stroke-dasharray="6 5" marker-end="url(#draftArrowHead)"/>
+                                    </svg>
+                                    ${itemsHtml}
+                                </div>
+                                <div class="admin-draft-direction-label">${directionLabel}</div>
+                            </div>`;
+                        el.adminOverlayDraftOrder.style.display = 'block';
+                    } else {
+                        el.adminOverlayDraftOrder.innerHTML = '';
+                        el.adminOverlayDraftOrder.style.display = 'none';
+                    }
+                }
             } else {
                 el.adminOverlay.classList.remove('active');
             }
@@ -1668,6 +1744,20 @@
             const allPassed = playerOrder.every(pid => data.players?.[pid]?.passedGen);
             el.nextGenBtn.style.display = allPassed && state.isHost ? 'block' : 'none';
             
+            // Cofnij ostatni ruch: dostępne dla hosta gdy jest co cofać i gra nie jest w pauzie
+            if (state.isHost && el.undoLastMoveBtn) {
+                const th = data.turnHistory || {};
+                const hasTurnToUndo = Object.values(th).some(v => v && v.playerId != null && v.startTime != null && v.endTime != null);
+                el.undoLastMoveBtn.disabled = data.isPaused || !hasTurnToUndo;
+            }
+            
+            // Pass Gen za aktywnego: wyłącz gdy pauza lub aktywny gracz już spasował pokolenie
+            if (state.isHost && el.hostPassGenBtn) {
+                const currentPlayerId = playerOrder[data.currentPlayerIndex];
+                const activeAlreadyPassed = currentPlayerId && data.players?.[currentPlayerId]?.passedGen;
+                el.hostPassGenBtn.disabled = data.isPaused || !!activeAlreadyPassed;
+            }
+            
             el.adminTimeBtn.classList.toggle('active', data.isPaused);
         }
         
@@ -1675,14 +1765,14 @@
         // GAME ACTIONS
         // =============================================
         
-        // Regular PASS
+        // Regular PASS (gracz w swojej turze lub host spasowujący za aktywnego gracza)
         async function pass() {
             if (!state.gameState) return;
             
             const playerOrder = state.gameState.playerOrder;
             const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
             
-            if (currentPlayerId !== state.playerId) return;
+            if (currentPlayerId !== state.playerId && !state.isHost) return;
             
             // Find next active player
             let nextIndex = state.gameState.currentPlayerIndex;
@@ -1709,17 +1799,19 @@
             });
         }
         
-        // PASS GEN
+        // PASS GEN (gracz w swojej turze lub host za aktywnego gracza)
         async function passGen() {
             if (!state.gameState) return;
             
             const playerOrder = state.gameState.playerOrder;
             const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
             
-            if (currentPlayerId !== state.playerId) return;
+            if (currentPlayerId !== state.playerId && !state.isHost) return;
             
-            // Mark current player as passed
-            await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), {
+            const playerIdToPass = state.isHost ? currentPlayerId : state.playerId;
+            if (state.players[playerIdToPass]?.passedGen) return;
+            
+            await update(ref(db, `rooms/${state.roomId}/players/${playerIdToPass}`), {
                 passedGen: true
             });
             // Room flow (advancing turn / ending generation) is handled by the HOST via the Firebase listener.
@@ -1781,22 +1873,36 @@
             const playerOrder = data.playerOrder || [];
             const players = (playerOrder.map(pid => data.players?.[pid]).filter(Boolean)) || [];
             
-            await update(ref(db, `rooms/${state.roomId}`), {
+            const updatePayload = {
                 state: 'finished',
                 gameEndTime,
                 finalGeneration,
                 gameDurationSeconds: durationSec,
                 finishedAt: serverTimestamp()
-            });
+            };
+            let finalTurnEntry = null;
+            if (!data.isPaused && playerOrder.length > 0 && data.turnStartTime != null) {
+                const currentPlayerId = playerOrder[data.currentPlayerIndex ?? 0];
+                if (currentPlayerId) {
+                    finalTurnEntry = { playerId: currentPlayerId, startTime: data.turnStartTime, endTime: gameEndTime };
+                    updatePayload[`turnHistory/${gameEndTime}_end`] = finalTurnEntry;
+                }
+            }
             
-            // Show stats on host immediately; others will get it via listener
-            showStatsScreen({
+            await update(ref(db, `rooms/${state.roomId}`), updatePayload);
+            
+            const statsData = {
                 ...data,
                 state: 'finished',
                 gameEndTime,
                 finalGeneration,
                 gameDurationSeconds: durationSec
-            });
+            };
+            if (finalTurnEntry) {
+                statsData.turnHistory = { ...(data.turnHistory || {}), [`${gameEndTime}_end`]: finalTurnEntry };
+            }
+            playGameEndSuccess();
+            showStatsScreen(statsData);
         }
         
         function showStatsScreen(data) {
@@ -1837,16 +1943,21 @@
                 ? genDurations.reduce((acc, g) => acc + g.ms, 0) / genDurations.length
                 : null;
             
+            const turnDurationSec = data.turnDuration ?? 45;
+            const turnDurationMs = turnDurationSec * 1000;
             const playerStats = {};
-            players.forEach(p => { playerStats[p.id] = { sumMs: 0, count: 0, maxMs: 0, minMs: null }; });
+            players.forEach(p => { playerStats[p.id] = { sumMs: 0, count: 0, maxMs: 0, minMs: null, overtimeMs: 0, overtimeCount: 0 }; });
             turnEntries.forEach(e => {
                 const durationMs = Math.max(0, e.endTime - e.startTime);
-                if (!playerStats[e.playerId]) playerStats[e.playerId] = { sumMs: 0, count: 0, maxMs: 0, minMs: null };
+                if (!playerStats[e.playerId]) playerStats[e.playerId] = { sumMs: 0, count: 0, maxMs: 0, minMs: null, overtimeMs: 0, overtimeCount: 0 };
                 const st = playerStats[e.playerId];
                 st.sumMs += durationMs;
                 st.count += 1;
                 st.maxMs = Math.max(st.maxMs, durationMs);
                 st.minMs = st.minMs === null ? durationMs : Math.min(st.minMs, durationMs);
+                const overtime = Math.max(0, durationMs - turnDurationMs);
+                st.overtimeMs += overtime;
+                if (overtime > 0) st.overtimeCount += 1;
             });
             
             const genDurationsHtml = genDurations.length > 0
@@ -1863,13 +1974,22 @@
                 <div class="stats-row"><span>Czas między pokoleniami</span><strong>${formatDurationMs(totalBetweenGensMs)}</strong></div>
             `;
             
+            const totalSumMs = players.reduce((acc, p) => acc + (playerStats[p.id]?.sumMs || 0), 0);
             const playersHtml = players.map(p => {
-                const st = playerStats[p.id] || { sumMs: 0, count: 0, maxMs: 0, minMs: null };
+                const st = playerStats[p.id] || { sumMs: 0, count: 0, maxMs: 0, minMs: null, overtimeMs: 0, overtimeCount: 0 };
                 const avgMs = st.count > 0 ? st.sumMs / st.count : 0;
-                const sharePercent = activeGameMs > 0 && st.sumMs >= 0 ? Math.round((st.sumMs / activeGameMs) * 100) : null;
+                let sharePercent = null;
+                if (st.sumMs >= 0 && (activeGameMs > 0 || totalSumMs > 0)) {
+                    if (totalSumMs > 0 && totalSumMs > activeGameMs) {
+                        sharePercent = Math.min(100, Math.round((st.sumMs / totalSumMs) * 100));
+                    } else if (activeGameMs > 0) {
+                        sharePercent = Math.min(100, Math.round((st.sumMs / activeGameMs) * 100));
+                    }
+                }
                 const minTurnStr = st.count === 0 ? '—' : formatDurationMs(st.minMs);
                 const maxTurnStr = st.count === 0 ? '—' : formatDurationMs(st.maxMs);
                 const shareStr = sharePercent !== null ? `${sharePercent}%` : '—';
+                const overtimeStr = st.overtimeMs > 0 ? formatDurationMs(st.overtimeMs) : '0 s';
                 return `
                     <div class="stats-player-block">
                         <div class="stats-player">
@@ -1878,7 +1998,9 @@
                         </div>
                         <div class="stats-player-rows">
                             <div class="stats-row stats-sub"><span>Suma czasu tur</span><strong>${formatDurationMs(st.sumMs)}</strong></div>
-                            <div class="stats-row stats-sub"><span>Udział czasu w turze</span><strong>${shareStr}</strong></div>
+                            <div class="stats-row stats-sub"><span>Udział w czasie gry</span><strong>${shareStr}</strong></div>
+                            <div class="stats-row stats-sub"><span>Przekroczony czas (łącznie)</span><strong>${overtimeStr}</strong></div>
+                            <div class="stats-row stats-sub"><span>Liczba przekroczeń czasu</span><strong>${st.overtimeCount ?? 0}</strong></div>
                             <div class="stats-row stats-sub"><span>Średni czas tury</span><strong>${st.count === 0 ? '—' : formatDurationMs(avgMs)}</strong></div>
                             <div class="stats-row stats-sub"><span>Liczba tur</span><strong>${st.count}</strong></div>
                             <div class="stats-row stats-sub"><span>Najkrótsza tura</span><strong>${minTurnStr}</strong></div>
@@ -1908,10 +2030,10 @@
             const isMyTurn = currentPlayerId === state.playerId;
             const isPaused = !state.gameState.isPaused;
             
-            // Only allow pausing during player's turn, or resuming if host
+            // Host can always pause/resume; inny gracz tylko gdy jego tura (pause) lub gdy to on pauzował (resume)
             if (isPaused) {
-                // Pausing - only during player's turn
-                if (!isMyTurn) {
+                // Pausing - host zawsze może; gracz tylko w swojej turze
+                if (!state.isHost && !isMyTurn) {
                     console.log('[ADMIN TIME] Cannot pause - not your turn');
                     return;
                 }
@@ -1981,6 +2103,44 @@
             });
         }
         
+        // Cofnij ostatni ruch (tylko host) – przywraca stan gry, usuwa wpis z turnHistory, odznacza passedGen i ewent. overlay "Koniec pokolenia"
+        async function undoLastMove() {
+            if (!state.isHost || !state.gameState) return;
+            if (state.gameState.isPaused) return;
+            
+            const turnHistory = state.gameState.turnHistory || {};
+            const entries = Object.entries(turnHistory).filter(([, v]) => v && v.playerId != null && v.startTime != null && v.endTime != null);
+            if (entries.length === 0) return;
+            
+            entries.sort((a, b) => (b[1].endTime || 0) - (a[1].endTime || 0));
+            const [lastKey, lastVal] = entries[0];
+            const playerOrder = state.gameState.playerOrder || [];
+            const prevIndex = playerOrder.indexOf(lastVal.playerId);
+            if (prevIndex === -1) return;
+            
+            state.lastAnnouncedTurnTime = lastVal.startTime;
+            state.lastAnnouncedGeneration = state.gameState.generation || 1;
+            
+            const updatePayload = {
+                currentPlayerIndex: prevIndex,
+                turnStartTime: lastVal.startTime,
+                [`turnHistory/${lastKey}`]: null,
+                [`players/${lastVal.playerId}/passedGen`]: false
+            };
+            
+            const isEndOfGenOverlay = state.gameState.overlayTitle && state.gameState.overlayTitle.includes('Koniec pokolenia');
+            if (isEndOfGenOverlay) {
+                const gen = state.gameState.generation || 1;
+                updatePayload.isPaused = false;
+                updatePayload.overlayTitle = null;
+                updatePayload.overlayText = null;
+                updatePayload.overlayButton = null;
+                updatePayload[`generationEndTimes/${gen}`] = null;
+            }
+            
+            await update(ref(db, `rooms/${state.roomId}`), updatePayload);
+        }
+        
         async function leaveRoom() {
             unsubscribers.forEach(unsub => unsub());
             unsubscribers = [];
@@ -2021,7 +2181,7 @@
         }
         
         // =============================================
-        // HOLD FOR PASS GEN
+        // HOLD FOR PASS GEN (1 s)
         // =============================================
         function startHold() {
             if (el.passGenBtn.disabled) return;
@@ -2031,7 +2191,7 @@
                 state.holdProgress += 10;
                 progressFill.style.width = state.holdProgress + '%';
                 if (state.holdProgress >= 100) endHold(true);
-            }, 50);
+            }, 100);
         }
         
         function endHold(confirmed = false) {
@@ -2045,7 +2205,7 @@
         }
         
         // =============================================
-        // HOLD FOR END GAME (0.5 s)
+        // HOLD FOR END GAME (1 s)
         // =============================================
         let endGameHoldTimeout = null;
         function startEndGameHold() {
@@ -2060,7 +2220,7 @@
                 if (progress >= 100) {
                     endEndGameHold(true);
                 }
-            }, 50);
+            }, 100);
         }
         function endEndGameHold(confirmed = false) {
             if (endGameHoldTimeout) {
@@ -2288,6 +2448,18 @@
             forceNextTurn();
         });
         
+        el.undoLastMoveBtn.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+            undoLastMove();
+        });
+        
+        el.hostPassGenBtn.addEventListener('click', () => {
+            el.hostPanel.classList.remove('open');
+            el.hostPanelBackdrop.classList.remove('open');
+            passGen();
+        });
+        
         el.hostAdminBtn.addEventListener('click', () => {
             el.hostPanel.classList.remove('open');
             el.hostPanelBackdrop.classList.remove('open');
@@ -2364,7 +2536,7 @@
                             }
                             
                             await update(ref(db, `rooms/${state.roomId}/players/${state.playerId}`), { online: true });
-                            onDisconnect(ref(db, `rooms/${state.roomId}/players/${state.playerId}`)).update({ online: false });
+                            onDisconnect(ref(db, `rooms/${state.roomId}/players/${state.playerId}`)).update({ online: false }).catch(() => {});
                             
                             if (roomData.state === 'playing') {
                                 // Set last announced to current to avoid re-announcing on reconnect

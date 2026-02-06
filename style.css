@@ -106,7 +106,8 @@ body {
 .screen.active { display: flex; }
 
 /* LOBBY SCREEN */
-.lobby-screen { justify-content: center; align-items: center; padding: 24px; text-align: center; }
+.lobby-screen { justify-content: center; align-items: center; padding: 24px; text-align: center; position: relative; }
+.lobby-version { position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); right: max(12px, env(safe-area-inset-right)); font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.05em; }
 
 /* Mars Planet Visual */
 .mars-planet-lobby {
@@ -633,13 +634,25 @@ body {
 .action-btn.host-only { display: none; }
 .is-host .action-btn.host-only { display: block; }
 
-.admin-overlay { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(10, 1, 24, 0.95), rgba(5, 0, 16, 0.98)); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; z-index: 100; backdrop-filter: blur(10px); }
+.admin-overlay { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(10, 1, 24, 0.95), rgba(5, 0, 16, 0.98)); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom)); z-index: 100; backdrop-filter: blur(10px); }
 .admin-overlay.active { display: flex; }
 .admin-overlay-icon { width: 80px; height: 80px; margin-bottom: 20px; color: var(--warning); filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5)); animation: iconPulse 2s ease-in-out infinite; }
 @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 .admin-overlay h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 6vw, 2rem); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--warning); margin-bottom: 10px; }
 .admin-overlay p { color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem; }
+.admin-overlay-draft-order { margin-bottom: 24px; text-align: center; width: 100%; max-width: 300px; }
+.admin-draft-title { font-family: var(--font-display); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+.admin-draft-circle-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.admin-draft-circle { position: relative; width: 200px; height: 200px; border-radius: 50%; border: 2px solid rgba(168, 85, 247, 0.35); background: rgba(10, 1, 24, 0.4); flex-shrink: 0; }
+.admin-draft-arrow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.admin-draft-arrow-path { opacity: 0.9; }
+.admin-draft-item { position: absolute; left: 50%; top: 50%; width: 64px; margin-left: -32px; margin-top: -20px; display: flex; flex-direction: column; align-items: center; gap: 2px; transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-72px); font-size: 0.75rem; }
+.admin-draft-item .admin-draft-num { color: var(--primary); font-weight: 700; font-size: 0.7rem; }
+.admin-draft-item .admin-draft-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
+.admin-draft-item .admin-draft-name { max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.admin-draft-direction-label { font-size: 0.65rem; color: var(--accent-cyan); letter-spacing: 0.05em; text-transform: uppercase; }
 .admin-overlay-buttons { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.admin-overlay-footer { margin-top: auto; padding-top: 24px; display: none; justify-content: center; }
 .resume-btn { padding: 18px 48px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bg-dark); background: linear-gradient(135deg, var(--warning), #fcd34d); border: none; border-radius: var(--radius-md); cursor: pointer; box-shadow: 0 0 30px rgba(251, 191, 36, 0.4); }
 .resume-btn:hover { transform: translateY(-2px); }
 .end-game-btn { display: inline-flex; align-items: center; justify-content: center; padding: 12px 28px; font-family: var(--font-display); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-primary); background: linear-gradient(135deg, var(--surface), var(--bg-darker)); border: 1px solid rgba(244, 63, 94, 0.4); border-radius: var(--radius-md); cursor: pointer; position: relative; overflow: hidden; min-height: 44px; touch-action: manipulation; }
