@@ -54,7 +54,7 @@
             <input type="text" class="join-input" id="joinCodeInput" placeholder="KOD" maxlength="4" autocomplete="off">
             <button class="lobby-btn primary" id="joinRoomBtn">Dołącz</button>
         </div>
-        <div class="lobby-version">v1.15</div>
+        <div class="lobby-version">v2.3</div>
     </div>
     
     <!-- NAME MODAL -->
@@ -109,7 +109,7 @@
     <!-- WAITING ROOM -->
     <div class="screen waiting-screen" id="waitingScreen">
         <div class="room-header">
-            <div class="room-code-label">Kod pokoju</div>
+            <div class="room-code-label">Kod misji</div>
             <div class="room-code" id="roomCodeDisplay">----</div>
             <div class="qr-container" id="qrContainer"></div>
         </div>
@@ -120,7 +120,7 @@
             <button class="time-btn-mini" id="timeUpMini">+</button>
         </div>
         <div class="players-waiting">
-            <div class="players-waiting-title">Gracze w pokoju</div>
+            <div class="players-waiting-title" id="playersWaitingTitle">Załoga: —. Czekamy na start.</div>
             <div id="waitingPlayersList"></div>
         </div>
         <div class="waiting-actions">
@@ -133,6 +133,9 @@
     <div class="screen game-screen" id="gameScreen">
         <div class="generation-bar">
             <div class="generation-info">
+                <span class="generation-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </span>
                 <span class="generation-label">Pokolenie</span>
                 <span class="generation-number" id="genNumber">1</span>
             </div>
@@ -150,8 +153,9 @@
         <div class="prep-overlay" id="prepOverlay" style="display:none;">
             <div class="prep-phase prep-phase-first" id="prepPhaseFirst" style="display:none;">
                 <h2 class="prep-title" id="prepFirstTitle">Losowanie pierwszego gracza</h2>
-                <div class="prep-carousel-wrap" id="prepCarouselWrap" style="display:none;">
-                    <div class="prep-carousel-name" id="prepCarouselName">—</div>
+                <p class="prep-subtitle" id="prepFirstSubtitle">Kto odpali pierwszą rakietę?</p>
+                <div class="prep-capsules-wrap" id="prepCapsulesWrap" style="display:none;">
+                    <div class="prep-capsules-row" id="prepCapsulesRow"></div>
                 </div>
                 <div class="prep-result-wrap" id="prepFirstResultWrap" style="display:none;">
                     <p class="prep-result-label">Zaczyna</p>
@@ -168,36 +172,53 @@
                 </div>
             </div>
             <div class="prep-phase prep-phase-board" id="prepPhaseBoard" style="display:none;">
-                <h2 class="prep-title">Losowanie planszy</h2>
-                <div class="prep-wheel-wrap" id="prepWheelWrap">
-                    <div class="prep-wheel" id="prepWheel">
-                        <div class="prep-wheel-segment" data-n="1">1</div>
-                        <div class="prep-wheel-segment" data-n="2">2</div>
-                        <div class="prep-wheel-segment" data-n="3">3</div>
-                        <div class="prep-wheel-segment" data-n="4">4</div>
-                        <div class="prep-wheel-segment" data-n="5">5</div>
-                        <div class="prep-wheel-segment" data-n="6">6</div>
-                    </div>
+                <h2 class="prep-title">Wybierz region lądowania</h2>
+                <p class="prep-subtitle">Mapa Marsa – losowanie planszy</p>
+                <div class="prep-board-draw-wrap" id="prepBoardDrawWrap">
+                    <div class="prep-board-mars-bg" aria-hidden="true"></div>
+                    <div class="prep-board-cards-row" id="prepBoardCardsRow"></div>
                 </div>
-                <div class="prep-result-wrap" id="prepBoardResultWrap" style="display:none;">
-                    <p class="prep-result-label">Plansza</p>
-                    <p class="prep-result-number" id="prepBoardResultNumber">—</p>
+                <div class="prep-board-result-wrap" id="prepBoardResultWrap" style="display:none;">
+                    <p class="prep-board-result-name" id="prepBoardResultName">—</p>
+                    <p class="prep-board-result-trait" id="prepBoardResultTrait">—</p>
                     <button type="button" class="prep-replay-btn" id="prepReplayBoardBtn" aria-label="Odtwórz">🔊 Odtwórz</button>
                 </div>
                 <div class="prep-actions">
-                    <button type="button" class="prep-btn primary" id="prepDrawBoardBtn" style="display:none;">Losuj</button>
+                    <button type="button" class="prep-btn primary" id="prepDrawBoardBtn" style="display:none;">Losuj region</button>
                     <button type="button" class="prep-btn primary" id="prepToDraftBtn" style="display:none;">Przygotowanie do gry</button>
                 </div>
             </div>
             <div class="prep-phase prep-phase-draft" id="prepPhaseDraft" style="display:none;">
-                <h2 class="prep-title">Kolejność draftu – pokolenie 1</h2>
+                <h2 class="prep-title" id="prepDraftTitle">Plan operacyjny misji</h2>
                 <div class="prep-draft-circle-wrap" id="prepDraftCircleWrap"></div>
-                <p class="prep-draft-direction">zgodnie ze wskazówkami zegara</p>
+                <div class="prep-card-choice-wrap" id="prepCardChoiceWrap">
+                    <div class="prep-card-choice-animation" aria-hidden="true">
+                        <div class="prep-card-tm prep-card-corporation" title="Korporacja">
+                            <div class="prep-card-tm-inner">
+                                <svg class="prep-card-tm-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="12" width="32" height="28" rx="2"/><path d="M8 20h32"/><path d="M14 20v16"/><path d="M22 20v16"/><path d="M30 20v16"/></svg>
+                                <span class="prep-card-tm-label">Korporacja</span>
+                            </div>
+                        </div>
+                        <div class="prep-card-tm prep-card-prelude" title="Preludium">
+                            <div class="prep-card-tm-inner">
+                                <svg class="prep-card-tm-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M24 6l4 10 10 2-7 7 2 10-9-5-9 5 2-10-7-7 10-2z"/></svg>
+                                <span class="prep-card-tm-label">Preludium</span>
+                            </div>
+                        </div>
+                        <div class="prep-card-tm prep-card-project" title="Karty projektów">
+                            <div class="prep-card-tm-inner">
+                                <svg class="prep-card-tm-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M24 10l-8 8h6v12h4V18h6z"/><ellipse cx="24" cy="38" rx="6" ry="2"/></svg>
+                                <span class="prep-card-tm-label">Projekt</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p class="prep-draft-direction" id="prepDraftDirection">Wybierz karty</p>
                 <div class="prep-actions">
                     <button type="button" class="prep-btn primary" id="prepStartFirstGenBtn">Rozpocznij pierwsze pokolenie</button>
                 </div>
             </div>
-            <button type="button" class="prep-back-btn" id="prepBackBtn" aria-label="Cofnij (przytrzymaj 1 s)"><span class="prep-back-btn-text">↩ Cofnij</span></button>
+            <button type="button" class="prep-back-btn" id="prepBackBtn" aria-label="Cofnij (przytrzymaj 1 s)"><div class="progress-fill"></div><span class="prep-back-btn-text">↩ Cofnij</span></button>
         </div>
         <div class="timer-area" id="timerArea">
             <div class="current-player-row">
@@ -211,8 +232,9 @@
                 </div>
                 <div class="timer-overlay"></div>
                 <div class="timer-ring">
-                    <svg viewBox="0 0 280 280">
+                    <svg viewBox="0 0 280 280" class="timer-ring-svg">
                         <circle class="timer-ring-bg" cx="140" cy="140" r="130"/>
+                        <circle class="timer-ring-aura" id="timerRingAura" cx="140" cy="140" r="130"/>
                         <circle class="timer-ring-progress" id="timerProgress" cx="140" cy="140" r="130"/>
                     </svg>
                 </div>
@@ -247,7 +269,7 @@
     <!-- STATS OVERLAY (koniec gry) -->
     <div class="stats-overlay" id="statsOverlay">
         <div class="stats-overlay-content">
-            <h2>Koniec gry</h2>
+            <h2>Raport końcowy misji</h2>
             <div class="stats-list" id="statsList"></div>
             <button class="lobby-btn primary" id="statsCloseBtn">Zamknij</button>
         </div>
@@ -276,7 +298,7 @@
             <div class="host-panel-section-title">Pokój</div>
             <button class="host-action-btn danger" id="leaveGameBtn">🚪 Opuść grę</button>
         </div>
-        <div class="room-info-small">Kod pokoju: <span id="roomCodeSmall">----</span></div>
+        <div class="room-info-small">Kod misji: <span id="roomCodeSmall">----</span></div>
     </div>
 
     <!-- QRCode Library -->
@@ -311,6 +333,31 @@
         const COLORS = ['blue', 'red', 'green', 'yellow', 'black'];
         const COLOR_HEX = { red: '#f43f5e', blue: '#3b82f6', green: '#22c55e', yellow: '#facc15', black: '#6b7280' };
         const PREDEFINED_ORDER = ['Przemek', 'Karol', 'Benek', 'Mateusz'];
+        
+        const BOARDS = [
+            { id: 'tharsis', name: 'Tharsis', color: '#e63946', shortTrait: 'Noctis, Valles Marineris' },
+            { id: 'hellas', name: 'Hellas', color: '#48cae4', shortTrait: 'Biegun południowy, wielki krater' },
+            { id: 'elysium', name: 'Elysium', color: '#52b788', shortTrait: 'Oceany na północy, Olympus Mons' },
+            { id: 'vastitas', name: 'Vastitas Borealis', color: '#1d3557', shortTrait: 'Lodowa północ' },
+            { id: 'utopia', name: 'Utopia Planitia', color: '#e76f51', shortTrait: 'Tytan, stal – północ' },
+            { id: 'terra', name: 'Terra Cimmeria', color: '#7b2cbf', shortTrait: 'Wyżyny, kratery' }
+        ];
+        function getBoardById(id) { return BOARDS.find(b => b.id === id) || null; }
+        function getBoardByNumber(n) { return BOARDS[Math.max(0, (n || 1) - 1)] || BOARDS[0]; }
+        function randomIndexUniform(n) {
+            if (n <= 0) return 0;
+            if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+                const arr = new Uint32Array(1);
+                const max = Math.floor(0x100000000 / n) * n;
+                let x;
+                do {
+                    crypto.getRandomValues(arr);
+                    x = arr[0];
+                } while (x >= max);
+                return (x % n) >>> 0;
+            }
+            return Math.floor(Math.random() * n);
+        }
         
         // Polish ordinal numbers for generation announcement
         const POLISH_ORDINALS = {
@@ -348,7 +395,15 @@
             warningPlayed: false,
             timeUpPlayed: false,
             // Flag to prevent double announcement of first player on game start (iOS issue)
-            gameStartAnnounced: false
+            gameStartAnnounced: false,
+            prevCurrentPlayerId: null,
+            warningPopPlayed: false,
+            shakeAt5Played: false,
+            turnGlowColor: null,
+            overtime2xPlayed: false,
+            graszSamAnnouncedForGeneration: null,
+            prevWaitingPlayerIds: [],
+            startBtnWasDisabled: true
         };
         
         let unsubscribers = [];
@@ -398,7 +453,7 @@
             
             // Load and find Polish voice
             loadVoices() {
-                const voices = speechSynthesis.getVoices();
+                const voices = (typeof speechSynthesis.getVoices === 'function' ? speechSynthesis.getVoices() : null) || [];
                 console.log('[TTS] Available voices:', voices.length);
                 
                 if (voices.length === 0) {
@@ -475,7 +530,8 @@
                         utterance.lang = 'pl-PL';
                     } else if (platform === 'desktop' && this.polishVoice) {
                         // Re-resolve by name to avoid stale voice object references
-                        const resolved = speechSynthesis.getVoices().find(v => v.name === this.polishVoice.name) || null;
+                        const voices = (speechSynthesis.getVoices && speechSynthesis.getVoices()) || [];
+                        const resolved = voices.find(v => v.name === this.polishVoice.name) || null;
                         utterance.voice = resolved;
                     }
                     
@@ -562,10 +618,8 @@
                         } else if (platform === 'android') {
                             // ANDROID: Use Polish voice if available, otherwise fallback
                             // Android Chrome often fails when voice=null, but works when a voice object is assigned.
-                            const voices = speechSynthesis.getVoices();
-                            
-                            // Log all available voices for debugging
-                            console.log('[TTS] Android - wszystkie dostępne głosy:', voices.map(v => `${v.name} (${v.lang})`));
+                            const voices = (speechSynthesis.getVoices && speechSynthesis.getVoices()) || [];
+                            if (voices.length > 0) console.log('[TTS] Android - wszystkie dostępne głosy:', voices.map(v => `${v.name} (${v.lang})`));
                             
                             let preferred = null;
                             
@@ -613,7 +667,8 @@
                         } else {
                             // Desktop: Use best voice if available
                             if (this.polishVoice) {
-                                const resolved = speechSynthesis.getVoices().find(v => v.name === this.polishVoice.name) || null;
+                                const voices = (speechSynthesis.getVoices && speechSynthesis.getVoices()) || [];
+                                const resolved = voices.find(v => v.name === this.polishVoice.name) || null;
                                 utterance.voice = resolved;
                             }
                             console.log('[TTS] Desktop mode - voice:', utterance.voice?.name || 'default');
@@ -708,7 +763,7 @@
                                     retry.volume = 1.0;
                                     if (platform === 'android') {
                                         // Retry: try Polish voice first with better detection, then fallback
-                                        const voices = speechSynthesis.getVoices();
+                                        const voices = (speechSynthesis.getVoices && speechSynthesis.getVoices()) || [];
                                         let retryVoice = null;
                                         
                                         // Try cached Polish voice first
@@ -754,15 +809,15 @@
                         speechSynthesis.speak(utterance);
 
                         // HARD ANDROID FALLBACK: if it didn't start, try again shortly with a different strategy
-                        if (platform === 'android') {
-                            setTimeout(() => {
-                                if (!speechSynthesis.speaking && !startFired) {
+if (platform === 'android') {
+                                    setTimeout(() => {
+                                    if (!speechSynthesis.speaking && !startFired) {
                                     console.warn('[TTS] Android: not speaking after speak(), forcing retry');
                                     speechSynthesis.cancel();
                                     cleanup();
                                     clearTicker();
                                     // Try with voice object (Polish first with better detection, then fallback)
-                                    const voices = speechSynthesis.getVoices();
+                                    const voices = (speechSynthesis.getVoices && speechSynthesis.getVoices()) || [];
                                     let retryVoice = null;
                                     
                                     // Try cached Polish voice first
@@ -867,6 +922,7 @@
             timeValueMini: $('timeValueMini'),
             timeUpMini: $('timeUpMini'),
             timeDownMini: $('timeDownMini'),
+            playersWaitingTitle: $('playersWaitingTitle'),
             waitingPlayersList: $('waitingPlayersList'),
             startGameBtn: $('startGameBtn'),
             leaveRoomBtn: $('leaveRoomBtn'),
@@ -905,26 +961,31 @@
             statsList: $('statsList'),
             statsCloseBtn: $('statsCloseBtn'),
             prepOverlay: $('prepOverlay'),
+            prepFirstSubtitle: $('prepFirstSubtitle'),
             prepPhaseFirst: $('prepPhaseFirst'),
             prepPhaseBoard: $('prepPhaseBoard'),
             prepPhaseDraft: $('prepPhaseDraft'),
-            prepCarouselWrap: $('prepCarouselWrap'),
-            prepCarouselName: $('prepCarouselName'),
+            prepCapsulesWrap: $('prepCapsulesWrap'),
+            prepCapsulesRow: $('prepCapsulesRow'),
             prepFirstResultWrap: $('prepFirstResultWrap'),
             prepFirstResultName: $('prepFirstResultName'),
             prepOrderListWrap: $('prepOrderListWrap'),
             prepOrderList: $('prepOrderList'),
             prepDrawFirstBtn: $('prepDrawFirstBtn'),
             prepBoardDrawBtn: $('prepBoardDrawBtn'),
-            prepWheelWrap: $('prepWheelWrap'),
-            prepWheel: $('prepWheel'),
+            prepBoardDrawWrap: $('prepBoardDrawWrap'),
+            prepBoardCardsRow: $('prepBoardCardsRow'),
             prepBoardResultWrap: $('prepBoardResultWrap'),
-            prepBoardResultNumber: $('prepBoardResultNumber'),
+            prepBoardResultName: $('prepBoardResultName'),
+            prepBoardResultTrait: $('prepBoardResultTrait'),
             prepReplayFirstBtn: $('prepReplayFirstBtn'),
             prepReplayBoardBtn: $('prepReplayBoardBtn'),
             prepDrawBoardBtn: $('prepDrawBoardBtn'),
             prepToDraftBtn: $('prepToDraftBtn'),
             prepDraftCircleWrap: $('prepDraftCircleWrap'),
+            prepDraftTitle: $('prepDraftTitle'),
+            prepDraftDirection: $('prepDraftDirection'),
+            prepCardChoiceWrap: $('prepCardChoiceWrap'),
             prepStartFirstGenBtn: $('prepStartFirstGenBtn'),
             prepBackBtn: $('prepBackBtn'),
             timerArea: $('timerArea'),
@@ -946,8 +1007,24 @@
         }
         
         function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            $(screenId).classList.add('active');
+            const target = $(screenId);
+            const current = document.querySelector('.screen.active');
+            if (current && current !== target) {
+                const isSwitchToGame = target && target.id === 'gameScreen';
+                if (isSwitchToGame) {
+                    current.classList.remove('active');
+                    target.classList.add('active');
+                } else {
+                    current.classList.add('screen-exit');
+                    setTimeout(() => {
+                        current.classList.remove('active', 'screen-exit');
+                        target.classList.add('active');
+                    }, 150);
+                }
+            } else {
+                if (current) current.classList.remove('active');
+                target.classList.add('active');
+            }
         }
         
         function formatTime(seconds) {
@@ -1014,33 +1091,39 @@
         // Wszystkie dźwięki gry – WYŁĄCZNIE na urządzeniu hosta. Nigdy nie rzucają – błędy są łapane.
         function playBeep(freq = 800, dur = 150, type = 'sine', volume = 0.3) {
             if (!state || !state.isHost || state.isMuted) return;
-            try {
-                if (!state.audioContext) return;
-                const ctx = state.audioContext;
-                if (ctx.state === 'suspended') {
-                    ctx.resume().catch(() => {});
+            if (!state.audioContext) return;
+            const ctx = state.audioContext;
+            if (ctx.state === 'closed') return;
+            function doPlay() {
+                try {
+                    if (ctx.state === 'closed') return;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.frequency.value = Math.max(0, Number(freq) || 800);
+                    osc.type = ['sine','square','sawtooth','triangle'].includes(type) ? type : 'sine';
+                    gain.gain.setValueAtTime(volume, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur / 1000);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + dur / 1000);
+                } catch (e) {
+                    console.warn('[AUDIO] Beep error:', e);
                 }
-                if (ctx.state === 'closed') return;
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.frequency.value = freq;
-                osc.type = type;
-                gain.gain.setValueAtTime(volume, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur / 1000);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + dur / 1000);
-            } catch (e) {
-                console.warn('[AUDIO] Beep error:', e);
+            }
+            if (ctx.state === 'suspended') {
+                ctx.resume().then(() => doPlay()).catch(() => {});
+            } else {
+                doPlay();
             }
         }
         
         function playTurnStart() {
             if (!state || !state.isHost) return;
             try {
-                playBeep(600, 100);
-                setTimeout(() => playBeep(800, 150), 120);
+                playBeep(392, 120, 'triangle', 0.5);
+                setTimeout(() => playBeep(523, 100, 'triangle', 0.45), 100);
+                setTimeout(() => playBeep(659, 180, 'sine', 0.45), 220);
             } catch (e) {
                 console.warn('[AUDIO] playTurnStart', e);
             }
@@ -1049,7 +1132,8 @@
         function playWarning() {
             if (!state || !state.isHost) return;
             try {
-                playBeep(880, 150, 'sine', 0.4);
+                playBeep(660, 100, 'sine', 0.5);
+                setTimeout(() => playBeep(880, 180, 'triangle', 0.45), 80);
             } catch (e) {
                 console.warn('[AUDIO] playWarning', e);
             }
@@ -1058,8 +1142,8 @@
         function playTimeUp() {
             if (!state || !state.isHost) return;
             try {
-                playBeep(300, 300, 'sawtooth', 0.5);
-                setTimeout(() => playBeep(250, 400, 'sawtooth', 0.5), 350);
+                playBeep(220, 350, 'triangle', 0.55);
+                setTimeout(() => playBeep(165, 450, 'sine', 0.5), 300);
             } catch (e) {
                 console.warn('[AUDIO] playTimeUp', e);
             }
@@ -1068,11 +1152,12 @@
         function playGameEndSuccess() {
             if (!state || !state.isHost) return;
             try {
-                const t = 180;
-                playBeep(523, t, 'sine', 0.35);
-                setTimeout(() => playBeep(659, t, 'sine', 0.35), t);
-                setTimeout(() => playBeep(784, t, 'sine', 0.35), t * 2);
-                setTimeout(() => playBeep(1047, t * 2, 'sine', 0.4), t * 3);
+                const t = 200;
+                playBeep(262, t, 'sine', 0.45);
+                setTimeout(() => playBeep(523, t, 'triangle', 0.48), t);
+                setTimeout(() => playBeep(659, t, 'triangle', 0.48), t * 2);
+                setTimeout(() => playBeep(784, t, 'sine', 0.52), t * 3);
+                setTimeout(() => playBeep(1047, t * 2, 'sine', 0.55), t * 4);
             } catch (e) {
                 console.warn('[AUDIO] playGameEndSuccess', e);
             }
@@ -1080,30 +1165,15 @@
         
         /** Ogłoszenie głosowe tylko na urządzeniu hosta. */
         function hostSpeak(text) {
-            console.log('[VOICE-DBG] hostSpeak() wywołane, text=', typeof text === 'string' ? JSON.stringify(text) : text);
-            if (!state) {
-                console.log('[VOICE-DBG] hostSpeak SKIP: brak state');
-                return;
-            }
-            if (!state.isHost) {
-                console.log('[VOICE-DBG] hostSpeak SKIP: !state.isHost (nie jesteś hostem)');
-                return;
-            }
-            if (typeof text !== 'string' || !text.trim()) {
-                console.log('[VOICE-DBG] hostSpeak SKIP: text pusty lub nie string');
-                return;
-            }
-            if (state.isMuted) {
-                console.log('[VOICE-DBG] hostSpeak SKIP: state.isMuted=true');
-                return;
-            }
             try {
-                if (typeof TTS === 'undefined' || !TTS.speak) {
-                    console.log('[VOICE-DBG] hostSpeak SKIP: TTS lub TTS.speak niedostępne');
-                    return;
-                }
-                console.log('[VOICE-DBG] hostSpeak -> wywołuję TTS.speak:', JSON.stringify(text));
-                TTS.speak(text);
+                const safeText = String(text != null ? text : '').trim();
+                if (!safeText) return;
+                console.log('[VOICE-DBG] hostSpeak() wywołane, text=', safeText.substring(0, 50));
+                if (!state) return;
+                if (!state.isHost) return;
+                if (state.isMuted) return;
+                if (typeof TTS === 'undefined' || !TTS.speak) return;
+                TTS.speak(safeText);
             } catch (e) {
                 console.warn('[VOICE-DBG] hostSpeak błąd:', e);
             }
@@ -1213,8 +1283,10 @@
             state.players = {};
             state.lastAnnouncedTurnTime = 0;
             state.lastAnnouncedGeneration = 0;
+            state.graszSamAnnouncedForGeneration = null;
             state.warningPlayed = false;
             state.timeUpPlayed = false;
+            state.overtime2xPlayed = false;
             state.gameStartAnnounced = false;
             if (hadRoom && rid && pid) {
                 try {
@@ -1395,8 +1467,12 @@
         function enterWaitingRoom() {
             showScreen('waitingScreen');
             requestWakeLock();
-            el.roomCodeDisplay.textContent = state.roomId;
-            el.roomCodeSmall.textContent = state.roomId;
+            if (el.roomCodeDisplay) {
+                el.roomCodeDisplay.textContent = state.roomId;
+                el.roomCodeDisplay.classList.add('room-code-highlight');
+                setTimeout(() => el.roomCodeDisplay && el.roomCodeDisplay.classList.remove('room-code-highlight'), 500);
+            }
+            if (el.roomCodeSmall) el.roomCodeSmall.textContent = state.roomId;
             el.timeValueMini.textContent = state.turnDuration;
             generateQR(state.roomId);
             
@@ -1432,34 +1508,30 @@
         
         function updateWaitingPlayersList() {
             const players = Object.entries(state.players).sort((a, b) => a[1].order - b[1].order);
-            el.waitingPlayersList.innerHTML = players.map(([id, p], index) => {
-                const isHost = state.isHost;
-                const canMoveUp = isHost && index > 0;
-                const canMoveDown = isHost && index < players.length - 1;
-                
-                return `
-                    <div class="player-waiting-item ${!p.online ? 'offline' : ''}" data-player-id="${id}">
-                        <div class="player-waiting-color" style="background: ${COLOR_HEX[p.color]}"></div>
-                        <div class="player-waiting-name">${p.name}</div>
-                        ${p.isHost ? '<div class="player-waiting-host">Host</div>' : ''}
-                        ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
-                        ${isHost ? `
-                            <div class="player-order-controls">
-                                <button type="button" class="order-btn order-btn-up" ${!canMoveUp ? 'disabled' : ''} data-action="up" data-player-id="${id}" aria-label="Przenieś w górę">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="18 15 12 9 6 15"></polyline>
-                                    </svg>
-                                </button>
-                                <button type="button" class="order-btn order-btn-down" ${!canMoveDown ? 'disabled' : ''} data-action="down" data-player-id="${id}" aria-label="Przenieś w dół">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('');
+            const names = players.map(([, p]) => p?.name).filter(Boolean);
+            const crewText = names.length > 0 ? names.join(', ') : '—';
+            if (el.playersWaitingTitle) el.playersWaitingTitle.textContent = `Załoga: ${crewText}. Czekamy na start.`;
+            el.waitingPlayersList.innerHTML = players.map(([id, p]) => `
+                <div class="player-waiting-item ${!p.online ? 'offline' : ''}" data-player-id="${id}">
+                    <div class="player-waiting-color" style="background: ${COLOR_HEX[p.color]}"></div>
+                    <div class="player-waiting-name">${p.name}</div>
+                    ${p.isHost ? '<div class="player-waiting-host">Host</div>' : ''}
+                    ${id === state.playerId ? '<div class="player-waiting-you">Ty</div>' : ''}
+                </div>
+            `).join('');
+            const currentIds = players.map(([id]) => id);
+            const prev = state.prevWaitingPlayerIds || [];
+            const newIds = currentIds.filter(id => !prev.includes(id));
+            state.prevWaitingPlayerIds = currentIds;
+            if (el.waitingPlayersList && newIds.length > 0) {
+                newIds.forEach(pid => {
+                    const item = el.waitingPlayersList.querySelector(`.player-waiting-item[data-player-id="${pid}"]`);
+                    if (item) {
+                        item.classList.add('player-just-joined');
+                        setTimeout(() => item.classList.remove('player-just-joined'), 400);
+                    }
+                });
+            }
         }
         
         async function movePlayerOrder(playerId, direction) {
@@ -1491,8 +1563,16 @@
         function updateStartButton() {
             if (!state.isHost) return;
             const onlinePlayers = Object.values(state.players).filter(p => p.online).length;
-            el.startGameBtn.disabled = onlinePlayers < 2;
-            el.startGameBtn.textContent = onlinePlayers < 2 ? 'Minimum 2 graczy' : 'Rozpocznij grę';
+            const nowDisabled = onlinePlayers < 2;
+            if (el.startGameBtn) {
+                const wasDisabled = el.startGameBtn.disabled;
+                el.startGameBtn.disabled = nowDisabled;
+                el.startGameBtn.textContent = nowDisabled ? 'Minimum 2 graczy' : 'Rozpocznij grę';
+                if (wasDisabled && !nowDisabled) {
+                    el.startGameBtn.classList.add('just-enabled');
+                    setTimeout(() => el.startGameBtn && el.startGameBtn.classList.remove('just-enabled'), 1000);
+                }
+            }
         }
         
         async function updateTurnDuration(delta) {
@@ -1508,12 +1588,14 @@
             } catch (e) {
                 console.warn('[startGame] initAudio', e);
             }
-            hostSpeak('Czas start');
+            hostSpeak('Misja Mars - start');
             const now = Date.now();
             try {
                 await update(ref(db, `rooms/${state.roomId}`), {
                     state: 'prep',
                     prepPhase: 'first_player',
+                    playerOrder: null,
+                    boardId: null,
                     gameStartTime: now,
                     turnDuration: state.turnDuration
                 });
@@ -1535,6 +1617,7 @@
             // Reset state
             state.warningPlayed = false;
             state.timeUpPlayed = false;
+            state.overtime2xPlayed = false;
             // DON'T reset gameStartAnnounced here - it's set in startGame() and prevents double announcement
             
             const roomRef = ref(db, `rooms/${state.roomId}`);
@@ -1683,7 +1766,15 @@
                             if (currentPlayer) {
                                 console.log('[VOICE-DBG] LISTENER fallback pierwszy gracz -> hostSpeak:', currentPlayer.name);
                                 playTurnStart();
-                                hostSpeak(currentPlayer.name);
+                                const remainingInGen = playerOrder.filter(pid => !data.players?.[pid]?.passedGen).length;
+                                const gen = data.generation || 1;
+                                const sayGraszSam = remainingInGen === 1 && state.graszSamAnnouncedForGeneration !== gen;
+                                if (sayGraszSam) {
+                                    hostSpeak(`${currentPlayer.name} grasz sam`);
+                                    state.graszSamAnnouncedForGeneration = gen;
+                                } else {
+                                    hostSpeak(currentPlayer.name);
+                                }
                                 state.lastAnnouncedTurnTime = data.turnStartTime;
                                 state.lastAnnouncedGeneration = data.generation;
                                 state.gameStartAnnounced = true;
@@ -1732,6 +1823,7 @@
                                 // Reset warning flags for new turn
                                 state.warningPlayed = false;
                                 state.timeUpPlayed = false;
+                                state.overtime2xPlayed = false;
                                 
                                 // Ogłoś gracza – bez opóźnienia (lepsze dla TTS), chyba że był „X spasował”
                                 const now = Date.now();
@@ -1744,7 +1836,15 @@
                                 state.pendingTurnAnnounceTimeoutId = setTimeout(() => {
                                     console.log('[VOICE-DBG] LISTENER setTimeout -> hostSpeak (tura):', currentPlayer.name);
                                     playTurnStart();
-                                    hostSpeak(currentPlayer.name);
+                                    const remainingInGen = playerOrder.filter(pid => !data.players?.[pid]?.passedGen).length;
+                                    const gen = data.generation || 1;
+                                    const sayGraszSam = remainingInGen === 1 && state.graszSamAnnouncedForGeneration !== gen;
+                                    if (sayGraszSam) {
+                                        hostSpeak(`${currentPlayer.name} grasz sam`);
+                                        state.graszSamAnnouncedForGeneration = gen;
+                                    } else {
+                                        hostSpeak(currentPlayer.name);
+                                    }
                                     state.pendingTurnAnnounceTimeoutId = null;
                                 }, extraDelay);
                             }
@@ -1756,6 +1856,7 @@
                         // Track generation changes separately
                         if (generationChanged) {
                             state.lastAnnouncedGeneration = data.generation;
+                            state.graszSamAnnouncedForGeneration = null;
                         }
                     }
                     
@@ -1780,7 +1881,7 @@
                     const remaining = state.gameState.turnDuration - elapsed;
                     updateTimerDisplay(remaining);
                     if (state.isHost && !state.isMuted) {
-                        if (remaining <= 5.1 && remaining > 4.5 && !state.warningPlayed) {
+                        if (remaining <= 5.5 && remaining > 4 && !state.warningPlayed) {
                             playWarning();
                             state.warningPlayed = true;
                         }
@@ -1788,6 +1889,28 @@
                             playTimeUp();
                             hostSpeak('Koniec czasu');
                             state.timeUpPlayed = true;
+                        }
+                        const turnDuration = state.gameState.turnDuration || 45;
+                        if (remaining < -turnDuration && !state.overtime2xPlayed) {
+                            state.overtime2xPlayed = true;
+                            const overtime2xTexts = [
+                                'Uwaga! Poziom tlenu rośnie szybciej niż Twoja decyzja.',
+                                'Rada Marsjańska czeka. Cierpliwość terraformatorów ma swoje granice.',
+                                'Mars się nie skolonizuje sam. Wykonaj turę.',
+                                'Satelity wykryły nadmierne przeciąganie decyzji.',
+                                'Analiza zakończona. Wynik: za długo myślisz.',
+                                'W kosmosie nikt nie usłyszy Twojego wahania.',
+                                'Alarm! Wykryto strategiczne przeciąganie tury.',
+                                'Projekt terraformacji wstrzymany przez nadmierne analizowanie.',
+                                'System rekomenduje wykonanie dowolnego ruchu.',
+                                'Tryb: przeciąganie. Proponowane działanie: ruch.',
+                                'Twoja analiza trwa dłużej niż lot na Marsa.',
+                                'Excel już by to policzył.',
+                                'Plan piękny. Realizacja w 2037.',
+                                'Uwaga. Wykryto tryb: filozof.'
+                            ];
+                            const msg = overtime2xTexts[Math.floor(Math.random() * overtime2xTexts.length)] || overtime2xTexts[0];
+                            if (msg) hostSpeak(msg);
                         }
                     }
                 } catch (_) {}
@@ -1811,6 +1934,27 @@
             if (el.timerText) el.timerText.classList.toggle('overtime', remaining < 0);
             if (el.timerText) el.timerText.classList.toggle('warning', remaining <= 5 && remaining > 0);
             if (el.timerProgress) el.timerProgress.classList.toggle('overtime', remaining < 0);
+            if (el.timerArea) {
+                el.timerArea.classList.toggle('timer-urgent', remaining <= 15 && remaining > 0);
+                el.timerArea.classList.toggle('timer-critical', remaining <= 5);
+                el.timerArea.classList.toggle('timer-area--overtime', remaining < 0);
+                if (remaining <= 15) el.timerArea.style.setProperty('--turn-glow', '#f43f5e');
+                else if (state.turnGlowColor) el.timerArea.style.setProperty('--turn-glow', state.turnGlowColor);
+                if (remaining > 5) state.shakeAt5Played = false;
+                if (remaining <= 5 && remaining > 0 && !state.warningPopPlayed) {
+                    state.warningPopPlayed = true;
+                    el.timerArea.classList.add('warning-pop');
+                    setTimeout(() => { if (el.timerArea) el.timerArea.classList.remove('warning-pop'); }, 400);
+                } else if (remaining > 5) state.warningPopPlayed = false;
+                if (remaining <= 5 && remaining > 4.5 && !state.shakeAt5Played) {
+                    state.shakeAt5Played = true;
+                    const timerDisplay = el.timerArea.querySelector('.timer-display');
+                    if (timerDisplay) {
+                        timerDisplay.classList.add('timer-shake');
+                        setTimeout(() => { timerDisplay.classList.remove('timer-shake'); }, 400);
+                    }
+                }
+            }
         }
         
         function updateGameUI(data) {
@@ -1821,11 +1965,23 @@
             const currentPlayer = data.players?.[currentPlayerId];
             
             if (currentPlayer) {
+                const row = el.currentPlayerName && el.currentPlayerName.parentElement;
+                if (currentPlayerId !== state.prevCurrentPlayerId && row) {
+                    row.classList.add('turn-changed');
+                    setTimeout(() => row.classList.remove('turn-changed'), 250);
+                }
+                state.prevCurrentPlayerId = currentPlayerId;
                 el.currentPlayerName.textContent = currentPlayer.name;
                 el.currentPlayerName.style.color = COLOR_HEX[currentPlayer.color];
                 if (el.currentPlayerReplayBtn) el.currentPlayerReplayBtn.style.display = state.isHost ? 'inline-flex' : 'none';
                 
                 const isMyTurn = currentPlayerId === state.playerId;
+                state.turnGlowColor = isMyTurn ? (COLOR_HEX[currentPlayer.color] || 'var(--primary)') : null;
+                if (el.timerArea) {
+                    el.timerArea.classList.toggle('my-turn', isMyTurn);
+                    if (!isMyTurn) el.timerArea.style.removeProperty('--turn-glow');
+                    /* --turn-glow ustawia tylko updateTimerDisplay (co 50 ms), żeby remaining <= 15 zawsze dawał czerwony */
+                }
                 el.currentPlayerLabel.textContent = isMyTurn ? 'Twoja tura!' : 'Tura gracza';
                 
                 // Host może zawsze spasować za aktywnego gracza (przycisk "Pass {Imię}"); inaczej tylko w swojej turze
@@ -1847,10 +2003,16 @@
                 if (timerGradient) {
                     timerGradient.innerHTML = `<stop offset="0%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/><stop offset="100%" style="stop-color:${COLOR_HEX[currentPlayer.color]}"/>`;
                 }
+                const auraEl = document.getElementById('timerRingAura');
+                if (auraEl) auraEl.style.stroke = COLOR_HEX[currentPlayer.color] || 'var(--primary)';
                 el.passBtn.style.background = `linear-gradient(135deg, ${COLOR_HEX[currentPlayer.color]}, ${COLOR_HEX[currentPlayer.color]})`;
                 el.passBtn.style.boxShadow = `0 8px 32px ${COLOR_HEX[currentPlayer.color]}66`;
-            } else if (el.currentPlayerReplayBtn) {
-                el.currentPlayerReplayBtn.style.display = 'none';
+            } else {
+                state.prevCurrentPlayerId = null;
+                if (el.timerArea) { el.timerArea.classList.remove('my-turn'); el.timerArea.style.removeProperty('--turn-glow'); }
+                if (el.currentPlayerReplayBtn) el.currentPlayerReplayBtn.style.display = 'none';
+                const auraEl = document.getElementById('timerRingAura');
+                if (auraEl) auraEl.style.stroke = 'rgba(255,255,255,0.08)';
             }
             
             // Players strip
@@ -1863,16 +2025,19 @@
                 if (p) orderedPlayers.push({ id: pid, ...p, originalIndex: idx });
             }
             
-            el.playersStrip.innerHTML = orderedPlayers.map(p => {
+            const startPid = playerOrder[startIndex];
+            el.playersStrip.innerHTML = orderedPlayers.map((p, i) => {
                 let statusClass = '';
                 let statusText = '';
                 if (p.passedGen) { statusClass = 'passed-gen'; statusText = 'GEN'; }
                 else if (p.id === currentPlayerId) { statusClass = 'active'; }
+                if (p.id === startPid) statusClass += ' started-gen';
                 if (!p.online) statusClass += ' offline';
                 
-                return `<div class="player-chip ${statusClass}">
+                return `<div class="player-chip ${statusClass.trim()}">
                     <div class="player-chip-dot" style="background: ${COLOR_HEX[p.color]}"></div>
                     <span>${p.name}</span>
+                    ${p.id === startPid ? '<span class="player-chip-start" title="Zaczynał pokolenie">◆</span>' : ''}
                     ${statusText ? `<span class="player-chip-status">${statusText}</span>` : ''}
                 </div>`;
             }).join('');
@@ -1900,7 +2065,7 @@
                 if (el.adminOverlayDraftOrder) {
                     if (isEndOfGen && playerOrder.length > 0) {
                         const gen = data.generation || 1;
-                        const counterClockwise = gen % 2 === 1;
+                        const counterClockwise = gen % 2 === 0;
                         const draftOrder = counterClockwise ? [...playerOrder].reverse() : [...playerOrder];
                         const directionLabel = counterClockwise ? 'odwrotnie do wskazówek zegara' : 'zgodnie ze wskazówkami zegara';
                         const n = draftOrder.length;
@@ -1986,7 +2151,6 @@
             const players = data.players && typeof data.players === 'object' ? data.players : {};
             
             if (phase === 'first_player') {
-                if (el.prepCarouselWrap) el.prepCarouselWrap.style.display = 'none';
                 if (el.prepFirstResultWrap) el.prepFirstResultWrap.style.display = 'none';
                 if (el.prepOrderListWrap) el.prepOrderListWrap.style.display = 'none';
                 if (el.prepDrawFirstBtn) el.prepDrawFirstBtn.style.display = 'none';
@@ -1994,9 +2158,23 @@
                 
                 if (playerOrder.length === 0) {
                     if (el.prepFirstTitle) el.prepFirstTitle.textContent = 'Losowanie pierwszego gracza';
+                    if (el.prepFirstSubtitle) el.prepFirstSubtitle.style.display = 'block';
+                    const defaultOrder = getDefaultPlayerOrder(players);
+                    if (el.prepCapsulesWrap) el.prepCapsulesWrap.style.display = 'flex';
+                    if (el.prepCapsulesRow) {
+                        el.prepCapsulesRow.innerHTML = defaultOrder.map((pid, index) => {
+                            const p = players[pid];
+                            return `<div class="prep-capsule" data-player-index="${index}" data-player-id="${pid}" style="--capsule-color:${COLOR_HEX[p?.color] || '#6b7280'}">
+                                <div class="prep-capsule-body"><div class="prep-capsule-color"></div><span class="prep-capsule-name">${p?.name || '—'}</span></div>
+                                <div class="prep-capsule-flame"></div>
+                            </div>`;
+                        }).join('');
+                    }
                     if (state.isHost && el.prepDrawFirstBtn) el.prepDrawFirstBtn.style.display = 'block';
                 } else {
                     if (el.prepFirstTitle) el.prepFirstTitle.textContent = 'Pierwszy gracz';
+                    if (el.prepFirstSubtitle) el.prepFirstSubtitle.style.display = 'none';
+                    if (el.prepCapsulesWrap) el.prepCapsulesWrap.style.display = 'none';
                     const first = players[playerOrder[0]];
                     if (el.prepFirstResultName) {
                         el.prepFirstResultName.textContent = first?.name || '—';
@@ -2025,41 +2203,34 @@
                                 ` : ''}
                             </div>`;
                     }).join('');
-                    if (el.prepBoardDrawBtn) el.prepBoardDrawBtn.style.display = 'block';
+                    if (state.isHost && el.prepBoardDrawBtn) el.prepBoardDrawBtn.style.display = 'block';
                 }
             } else if (phase === 'board') {
-                const boardNum = data.boardNumber;
-                if (el.prepWheelWrap) el.prepWheelWrap.style.display = boardNum == null ? 'block' : 'none';
-                if (el.prepBoardResultWrap) el.prepBoardResultWrap.style.display = boardNum != null ? 'block' : 'none';
-                if (el.prepBoardResultNumber && boardNum != null) el.prepBoardResultNumber.textContent = String(boardNum);
-                if (el.prepReplayBoardBtn) el.prepReplayBoardBtn.style.display = (state.isHost && boardNum != null) ? 'inline-block' : 'none';
-                if (el.prepDrawBoardBtn) el.prepDrawBoardBtn.style.display = (state.isHost && boardNum == null) ? 'block' : 'none';
-                if (el.prepToDraftBtn) el.prepToDraftBtn.style.display = boardNum != null ? 'block' : 'none';
-                if (el.prepWheel) {
-                    el.prepWheel.style.transition = '';
-                    el.prepWheel.style.transform = '';
+                const boardId = data.boardId || (data.boardNumber != null ? (BOARDS[Math.max(0, data.boardNumber - 1)]?.id) : null);
+                const board = boardId ? getBoardById(boardId) : null;
+                if (el.prepBoardDrawWrap) el.prepBoardDrawWrap.style.display = boardId == null ? 'block' : 'none';
+                if (el.prepBoardResultWrap) el.prepBoardResultWrap.style.display = boardId != null ? 'block' : 'none';
+                if (board) {
+                    if (el.prepBoardResultName) el.prepBoardResultName.textContent = board.name;
+                    if (el.prepBoardResultName) el.prepBoardResultName.style.color = board.color;
+                    if (el.prepBoardResultTrait) el.prepBoardResultTrait.textContent = board.shortTrait;
                 }
+                if (el.prepBoardCardsRow) {
+                    el.prepBoardCardsRow.innerHTML = BOARDS.map((b, i) => `
+                        <div class="prep-board-card" data-board-id="${b.id}" data-board-index="${i}" style="--board-color:${b.color}">
+                            <span class="prep-board-card-name">${b.name}</span>
+                        </div>
+                    `).join('');
+                }
+                if (el.prepReplayBoardBtn) el.prepReplayBoardBtn.style.display = (state.isHost && boardId) ? 'inline-block' : 'none';
+                if (el.prepDrawBoardBtn) el.prepDrawBoardBtn.style.display = (state.isHost && boardId == null) ? 'block' : 'none';
+                if (el.prepToDraftBtn) el.prepToDraftBtn.style.display = (boardId != null && state.isHost) ? 'block' : 'none';
             } else if (phase === 'draft') {
-                if (el.prepDraftCircleWrap) {
-                    if (playerOrder.length > 0) {
-                        const n = playerOrder.length;
-                        const itemsHtml = playerOrder.map((pid, i) => {
-                            const p = players[pid];
-                            const angleDeg = -90 + (360 / n) * i;
-                            return `<div class="admin-draft-item" style="--angle: ${angleDeg}deg"><span class="admin-draft-num">${i + 1}</span><span class="admin-draft-dot" style="background:${COLOR_HEX[p?.color] || '#6b7280'}"></span><span class="admin-draft-name">${p?.name || '—'}</span></div>`;
-                        }).join('');
-                        el.prepDraftCircleWrap.innerHTML = `
-                        <div class="admin-draft-circle" style="margin:0 auto;">
-                            <svg class="admin-draft-arrow" viewBox="0 0 200 200" aria-hidden="true">
-                                <defs><marker id="prepDraftArrowHead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="var(--accent-cyan)"/></marker></defs>
-                                <path class="admin-draft-arrow-path" d="M 100 18 A 82 82 0 0 1 100 182" fill="none" stroke="var(--accent-cyan)" stroke-width="3" stroke-dasharray="6 5" marker-end="url(#prepDraftArrowHead)"/>
-                            </svg>
-                            ${itemsHtml}
-                        </div>`;
-                    } else {
-                        el.prepDraftCircleWrap.innerHTML = '';
-                    }
-                }
+                if (el.prepDraftTitle) el.prepDraftTitle.textContent = 'Plan operacyjny misji';
+                if (el.prepDraftDirection) el.prepDraftDirection.textContent = 'Wybierz karty';
+                if (el.prepDraftCircleWrap) el.prepDraftCircleWrap.style.display = 'none';
+                if (el.prepCardChoiceWrap) el.prepCardChoiceWrap.style.display = 'block';
+                if (el.prepStartFirstGenBtn) el.prepStartFirstGenBtn.style.display = state.isHost ? 'block' : 'none';
             }
         }
         
@@ -2078,65 +2249,62 @@
                 alert('Do losowania potrzebni są co najmniej 2 graczy w pokoju.');
                 return;
             }
-            const names = defaultOrder.map(pid => players[pid]?.name || '—');
-            if (names.length === 0) return;
+            const randomIndex = randomIndexUniform(defaultOrder.length);
+            const firstPlayerId = defaultOrder[randomIndex];
             try {
-                if (el.prepFirstTitle) el.prepFirstTitle.textContent = 'Losowanie...';
+                if (el.prepFirstTitle) el.prepFirstTitle.textContent = 'Odpalanie...';
                 if (el.prepDrawFirstBtn) el.prepDrawFirstBtn.style.display = 'none';
-                if (el.prepCarouselWrap) el.prepCarouselWrap.style.display = 'flex';
             } catch (e) {
                 console.error('[prep] runFirstPlayerDraw UI', e);
                 return;
             }
-            const durationMs = 3000;
-            const stepMs = 80;
-            const t0 = Date.now();
-            let carouselIntervalId = null;
-            carouselIntervalId = setInterval(() => {
-                try {
-                    const elapsed = Date.now() - t0;
-                    if (elapsed >= durationMs) {
-                        if (carouselIntervalId != null) clearInterval(carouselIntervalId);
-                        carouselIntervalId = null;
-                        if (el.prepCarouselWrap) el.prepCarouselWrap.style.display = 'none';
-                        const randomIndex = Math.floor(Math.random() * defaultOrder.length);
-                        const firstPlayerId = defaultOrder[randomIndex];
+            const row = el.prepCapsulesRow;
+            const count = row ? row.children.length : 0;
+            const stepMs = 90;
+            const totalSteps = 10 + Math.floor(Math.random() * 8);
+            let step = 0;
+            const cycleHighlight = () => {
+                if (!row || step >= totalSteps) {
+                    for (let i = 0; i < row.children.length; i++) {
+                        row.children[i].classList.remove('prep-capsule-highlight');
+                        row.children[i].classList.toggle('prep-capsule-launching', i === randomIndex);
+                        row.children[i].classList.toggle('prep-capsule-dimmed', i !== randomIndex);
+                    }
+                    setTimeout(() => {
                         const playerOrder = [...defaultOrder.slice(randomIndex), ...defaultOrder.slice(0, randomIndex)];
                         update(ref(db, `rooms/${roomId}`), {
                             playerOrder,
                             prepPhase: 'first_player'
                         }).then(() => {
                             const first = players[firstPlayerId];
-                            console.log('[VOICE-DBG] runFirstPlayerDraw .then() – first=', first?.name, 'playerId=', firstPlayerId);
-                            if (first?.name) {
-                                const msg = `Zaczyna ${first.name}`;
-                                console.log('[VOICE-DBG] runFirstPlayerDraw -> hostSpeak:', msg);
-                                hostSpeak(msg);
-                            } else {
-                                console.log('[VOICE-DBG] runFirstPlayerDraw -> brak first.name, nie wywołuję hostSpeak');
-                            }
+                            if (first?.name) hostSpeak(`Zaczyna ${first.name}`);
                         }).catch((err) => {
                             console.error('[prep] runFirstPlayerDraw update failed', err);
                             if (el.prepDrawFirstBtn) el.prepDrawFirstBtn.style.display = 'block';
-                            if (el.prepCarouselWrap) el.prepCarouselWrap.style.display = 'none';
                             if (el.prepFirstTitle) el.prepFirstTitle.textContent = 'Losowanie pierwszego gracza';
+                            if (el.prepCapsulesRow) {
+                                for (const c of el.prepCapsulesRow.children) {
+                                    c.classList.remove('prep-capsule-launching', 'prep-capsule-dimmed');
+                                }
+                            }
                             alert('Nie udało się zapisać wyniku. Sprawdź połączenie.');
                         });
-                        return;
-                    }
-                    const idx = Math.floor(elapsed / stepMs) % names.length;
-                    if (el.prepCarouselName) {
-                        el.prepCarouselName.textContent = names[idx] || '—';
-                        el.prepCarouselName.style.opacity = '1';
-                    }
-                } catch (e) {
-                    console.error('[prep] runFirstPlayerDraw interval', e);
-                    if (carouselIntervalId != null) clearInterval(carouselIntervalId);
-                    if (el.prepDrawFirstBtn) el.prepDrawFirstBtn.style.display = 'block';
-                    if (el.prepCarouselWrap) el.prepCarouselWrap.style.display = 'none';
-                    if (el.prepFirstTitle) el.prepFirstTitle.textContent = 'Losowanie pierwszego gracza';
+                    }, 1500);
+                    return;
                 }
-            }, stepMs);
+                const highlightIndex = step % count;
+                for (let i = 0; i < row.children.length; i++) {
+                    row.children[i].classList.toggle('prep-capsule-highlight', i === highlightIndex);
+                }
+                step++;
+                setTimeout(cycleHighlight, stepMs);
+            };
+            if (count > 0) {
+                cycleHighlight();
+            } else {
+                const playerOrder = [...defaultOrder.slice(randomIndex), ...defaultOrder.slice(0, randomIndex)];
+                update(ref(db, `rooms/${roomId}`), { playerOrder, prepPhase: 'first_player' }).catch(() => {});
+            }
         }
         
         async function runBoardDraw() {
@@ -2149,33 +2317,60 @@
                 console.warn('[prep] initAudio before board draw', e);
             }
             if (el.prepDrawBoardBtn) el.prepDrawBoardBtn.style.display = 'none';
-            const durationMs = 3000;
-            const result = 1 + Math.floor(Math.random() * 6);
-            const wheel = el.prepWheel;
-            if (wheel) {
-                const segmentAngle = 360 / 6;
-                const targetRotate = 360 * 3 + (result - 1) * segmentAngle + segmentAngle / 2;
-                wheel.style.transition = `transform ${durationMs}ms cubic-bezier(0.2, 0.8, 0.3, 1)`;
-                wheel.style.transform = `rotate(-${targetRotate}deg)`;
-            }
-            setTimeout(() => {
-                try {
-                    if (wheel) wheel.style.transition = '';
-                    if (el.prepWheelWrap) el.prepWheelWrap.style.display = 'none';
-                    if (el.prepBoardResultNumber) el.prepBoardResultNumber.textContent = String(result);
-                    if (el.prepBoardResultWrap) el.prepBoardResultWrap.style.display = 'block';
-                    if (el.prepToDraftBtn) el.prepToDraftBtn.style.display = 'block';
-                    update(ref(db, `rooms/${roomId}`), { boardNumber: result }).catch((err) => {
-                        console.error('[prep] runBoardDraw update failed', err);
-                        alert('Nie udało się zapisać numeru planszy. Sprawdź połączenie.');
+            const randomIndex = randomIndexUniform(BOARDS.length);
+            const board = BOARDS[randomIndex];
+            const cards = el.prepBoardCardsRow ? Array.from(el.prepBoardCardsRow.querySelectorAll('.prep-board-card')) : [];
+            const count = cards.length;
+            if (el.prepBoardDrawWrap) el.prepBoardDrawWrap.classList.add('prep-board-cycling');
+            const stepMs = 65;
+            const totalSteps = 32 + Math.floor(Math.random() * 12);
+            let step = 0;
+            const cycleCard = () => {
+                if (!cards.length || step >= totalSteps) {
+                    if (el.prepBoardDrawWrap) el.prepBoardDrawWrap.classList.remove('prep-board-cycling');
+                    cards.forEach((c, i) => {
+                        c.classList.remove('prep-board-card-active');
+                        c.classList.toggle('prep-board-card-dimmed', i !== randomIndex);
+                        if (i === randomIndex) c.classList.add('prep-board-card-active');
                     });
-                    const boardMsg = `Plansza numer ${result}`;
-                    console.log('[VOICE-DBG] runBoardDraw -> hostSpeak:', boardMsg);
-                    hostSpeak(boardMsg);
-                } catch (e) {
-                    console.error('[prep] runBoardDraw timeout', e);
+                    setTimeout(() => {
+                        try {
+                            if (el.prepBoardDrawWrap) el.prepBoardDrawWrap.style.display = 'none';
+                            if (el.prepBoardResultWrap) el.prepBoardResultWrap.style.display = 'block';
+                            if (el.prepBoardResultName) { el.prepBoardResultName.textContent = board.name; el.prepBoardResultName.style.color = board.color; }
+                            if (el.prepBoardResultTrait) el.prepBoardResultTrait.textContent = board.shortTrait;
+                            if (el.prepReplayBoardBtn) el.prepReplayBoardBtn.style.display = state.isHost ? 'inline-block' : 'none';
+                            if (el.prepToDraftBtn) el.prepToDraftBtn.style.display = state.isHost ? 'block' : 'none';
+                            update(ref(db, `rooms/${roomId}`), { boardId: board.id }).catch((err) => {
+                                console.error('[prep] runBoardDraw update failed', err);
+                                alert('Nie udało się zapisać planszy. Sprawdź połączenie.');
+                            });
+                            hostSpeak(`Plansza ${board.name}`);
+                        } catch (e) {
+                            console.error('[prep] runBoardDraw timeout', e);
+                        }
+                    }, 1200);
+                    return;
                 }
-            }, durationMs);
+                cards.forEach((c, i) => c.classList.toggle('prep-board-card-active', i === (step % count)));
+                step++;
+                setTimeout(cycleCard, stepMs);
+            };
+            if (count > 0) {
+                cycleCard();
+            } else {
+                if (el.prepBoardDrawWrap) el.prepBoardDrawWrap.classList.remove('prep-board-cycling');
+                setTimeout(() => {
+                    if (el.prepBoardDrawWrap) el.prepBoardDrawWrap.style.display = 'none';
+                    if (el.prepBoardResultWrap) el.prepBoardResultWrap.style.display = 'block';
+                    if (el.prepBoardResultName) { el.prepBoardResultName.textContent = board.name; el.prepBoardResultName.style.color = board.color; }
+                    if (el.prepBoardResultTrait) el.prepBoardResultTrait.textContent = board.shortTrait;
+                    if (el.prepReplayBoardBtn) el.prepReplayBoardBtn.style.display = state.isHost ? 'inline-block' : 'none';
+                    if (el.prepToDraftBtn) el.prepToDraftBtn.style.display = state.isHost ? 'block' : 'none';
+                    update(ref(db, `rooms/${roomId}`), { boardId: board.id }).catch(() => {});
+                    hostSpeak(`Plansza ${board.name}`);
+                }, 800);
+            }
         }
         
         async function movePrepPlayerOrder(playerId, direction) {
@@ -2227,6 +2422,7 @@
             const now = Date.now();
             state.lastAnnouncedTurnTime = turnStartTime;
             state.lastAnnouncedGeneration = 1;
+            state.graszSamAnnouncedForGeneration = null;
             state.gameStartAnnounced = true;
             setTimeout(() => { state.gameStartAnnounced = false; }, 2000);
             try {
@@ -2264,11 +2460,18 @@
             if (!state.isHost || !state.gameState || !state.roomId) return;
             const phase = state.gameState.prepPhase;
             if (phase === 'first_player') return;
+            const roomRef = ref(db, `rooms/${state.roomId}`);
             try {
                 if (phase === 'board') {
-                    await update(ref(db, `rooms/${state.roomId}`), { prepPhase: 'first_player', boardNumber: null });
+                    const next = { ...state.gameState, prepPhase: 'first_player', boardId: null };
+                    await update(roomRef, { prepPhase: 'first_player', boardId: null });
+                    state.gameState = next;
+                    updatePrepUI(next);
                 } else if (phase === 'draft') {
-                    await update(ref(db, `rooms/${state.roomId}`), { prepPhase: 'board' });
+                    const next = { ...state.gameState, prepPhase: 'board' };
+                    await update(roomRef, { prepPhase: 'board' });
+                    state.gameState = next;
+                    updatePrepUI(next);
                 }
             } catch (err) {
                 console.error('[prep] prepBack failed', err);
@@ -2287,6 +2490,11 @@
             const currentPlayerId = playerOrder[state.gameState.currentPlayerIndex];
             
             if (currentPlayerId !== state.playerId && !state.isHost) return;
+            
+            if (el.passBtn) {
+                el.passBtn.classList.add('pass-success');
+                setTimeout(() => el.passBtn && el.passBtn.classList.remove('pass-success'), 400);
+            }
             
             // Find next active player
             let nextIndex = state.gameState.currentPlayerIndex;
@@ -2379,6 +2587,7 @@
         // END GAME (host only, from "Koniec gry" hold)
         async function endGame() {
             if (!state.isHost || !state.gameState) return;
+            hostSpeak('Teraformacja zakończona');
             const data = state.gameState;
             const gameEndTime = Date.now();
             const gameStartTime = data.gameStartTime || gameEndTime;
@@ -2389,6 +2598,7 @@
             
             const updatePayload = {
                 state: 'finished',
+                boardId: null,
                 gameEndTime,
                 finalGeneration,
                 gameDurationSeconds: durationSec,
@@ -2420,10 +2630,19 @@
         }
         
         function showStatsScreen(data) {
+            if (!data || !el.statsList || !el.statsOverlay) return;
             const gen = data.finalGeneration ?? data.generation ?? 0;
             const durationSec = data.gameDurationSeconds ?? 0;
+            const turnHistory = data.turnHistory || {};
+            const turnEntries = Object.values(turnHistory).filter(e => e && e.playerId != null && e.startTime != null && e.endTime != null);
             const playerOrder = data.playerOrder || [];
-            const players = playerOrder.map(pid => ({ id: pid, ...(data.players?.[pid] || {}) })).filter(p => p.name);
+            let players = playerOrder.map(pid => ({ id: pid, ...(data.players?.[pid] || {}) })).filter(p => p && (p.name || p.id));
+            if (players.length === 0 && turnEntries.length > 0) {
+                const seen = new Set();
+                const orderFromTurns = [];
+                turnEntries.forEach(e => { if (!seen.has(e.playerId)) { seen.add(e.playerId); orderFromTurns.push(e.playerId); } });
+                players = orderFromTurns.map(pid => ({ id: pid, ...(data.players?.[pid] || {}), name: (data.players?.[pid]?.name) || `Gracz ${String(pid || '').slice(0, 8)}`, color: data.players?.[pid]?.color || 'gray' }));
+            }
             
             const mins = Math.floor(durationSec / 60);
             const secs = durationSec % 60;
@@ -2432,8 +2651,6 @@
             const generationStartTimes = data.generationStartTimes || {};
             const generationEndTimes = data.generationEndTimes || {};
             const totalAdminTimeMs = data.totalAdminTimeMs || 0;
-            const turnHistory = data.turnHistory || {};
-            const turnEntries = Object.values(turnHistory).filter(e => e && e.playerId != null && e.startTime != null && e.endTime != null);
             
             const gameStartTime = data.gameStartTime || 0;
             const gen1Start = generationStartTimes[1] ?? generationStartTimes['1'] ?? 0;
@@ -2513,7 +2730,7 @@
                     <div class="stats-player-block">
                         <div class="stats-player">
                             <span class="stats-player-dot" style="background:${COLOR_HEX[p.color] || '#6b7280'}"></span>
-                            <span>${p.name}</span>
+                            <span>${p.name || ('Gracz ' + (p.id || '').slice(0, 8)) || '—'}</span>
                         </div>
                         <div class="stats-player-rows">
                             <div class="stats-row stats-sub"><span>Suma czasu tur</span><strong>${formatDurationMs(st.sumMs)}</strong></div>
@@ -2686,6 +2903,7 @@
                 state.lastAnnouncedGeneration = 0;
                 state.warningPlayed = false;
                 state.timeUpPlayed = false;
+                state.overtime2xPlayed = false;
                 state.gameStartAnnounced = false;
                 if (el.hostOnlySection) el.hostOnlySection.style.display = 'none';
                 if (el.hostSoundSection) el.hostSoundSection.style.display = 'none';
@@ -2727,7 +2945,13 @@
                 if (pf) pf.style.width = '0%';
             } catch (_) {}
             state.holdProgress = 0;
-            if (confirmed) try { passGen(); } catch (e) { showRecoveryOverlay(); }
+            if (confirmed) {
+                if (el.passGenBtn) {
+                    el.passGenBtn.classList.add('passgen-success');
+                    setTimeout(() => { if (el.passGenBtn) el.passGenBtn.classList.remove('passgen-success'); }, 300);
+                }
+                try { passGen(); } catch (e) { showRecoveryOverlay(); }
+            }
         }
         
         // =============================================
@@ -2905,8 +3129,9 @@
         });
         if (el.prepReplayBoardBtn) el.prepReplayBoardBtn.addEventListener('click', () => {
             if (!state.isHost || !state.gameState) return;
-            const n = state.gameState.boardNumber;
-            if (n != null) hostSpeak('Plansza numer ' + n);
+            const boardId = state.gameState.boardId;
+            const board = boardId ? getBoardById(boardId) : (state.gameState.boardNumber != null ? getBoardByNumber(state.gameState.boardNumber) : null);
+            if (board) hostSpeak('Plansza ' + board.name);
         });
         if (el.currentPlayerReplayBtn) el.currentPlayerReplayBtn.addEventListener('click', () => {
             if (!state.isHost || !state.gameState) return;
@@ -3007,10 +3232,16 @@
         el.adminTimeBtn.addEventListener('click', toggleAdminTime);
         
         el.resumeBtn.addEventListener('click', () => {
-            if (state.gameState?.overlayButton?.includes('Pokolenie')) {
-                nextGeneration();
+            if (el.adminOverlay) {
+                el.adminOverlay.classList.add('overlay-closing');
+                setTimeout(() => {
+                    if (el.adminOverlay) el.adminOverlay.classList.remove('overlay-closing');
+                    if (state.gameState?.overlayButton?.includes('Pokolenie')) nextGeneration();
+                    else toggleAdminTime();
+                }, 150);
             } else {
-                toggleAdminTime();
+                if (state.gameState?.overlayButton?.includes('Pokolenie')) nextGeneration();
+                else toggleAdminTime();
             }
         });
         
@@ -3022,8 +3253,13 @@
         el.endGameBtn.addEventListener('touchcancel', () => endEndGameHold(false));
         
         el.statsCloseBtn.addEventListener('click', () => {
-            el.statsOverlay.classList.remove('active');
-            leaveRoom();
+            if (el.statsOverlay) {
+                el.statsOverlay.classList.add('overlay-closing');
+                setTimeout(() => {
+                    if (el.statsOverlay) el.statsOverlay.classList.remove('overlay-closing', 'active');
+                    leaveRoom();
+                }, 150);
+            } else leaveRoom();
         });
         
         el.menuBtn.addEventListener('click', () => {
